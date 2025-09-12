@@ -7,8 +7,6 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-import java.util.Arrays;
-import java.util.List;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
@@ -30,14 +28,11 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(@NonNull CorsRegistry registry) {
-        // Parse allowed origins from environment variable
-        List<String> origins = Arrays.asList(allowedOrigins.split(","));
-        
         registry.addMapping("/**")
-                .allowedOriginPatterns(origins.toArray(new String[0]))
-                .allowedOrigins("*") // Allow all origins temporarily for debugging
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
+                .allowedOrigins("*") // Allow all origins
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD")
                 .allowedHeaders("*")
+                .exposedHeaders("*")
                 .allowCredentials(false) // Must be false when using allowedOrigins("*")
                 .maxAge(3600);
     }

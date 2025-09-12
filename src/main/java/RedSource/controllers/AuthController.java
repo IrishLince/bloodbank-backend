@@ -43,7 +43,7 @@ import java.util.HashMap;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = "*", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
