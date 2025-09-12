@@ -65,6 +65,7 @@ public class WebSecurityConfig {
                     .requestMatchers("/uploads/**").permitAll()
                     .requestMatchers("/api/public/**").permitAll()
                     .requestMatchers("/actuator/health").permitAll()
+                    .requestMatchers("/health").permitAll()
                     .requestMatchers("/api/test/health").permitAll()
                     .anyRequest().authenticated()
             );
