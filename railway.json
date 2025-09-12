@@ -1,8 +1,7 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "mvn clean compile package -DskipTests"
+    "builder": "NIXPACKS"
   },
   "deploy": {
     "startCommand": "java -Dspring.profiles.active=production -Dserver.port=$PORT -jar target/app-0.0.1-SNAPSHOT.jar",
