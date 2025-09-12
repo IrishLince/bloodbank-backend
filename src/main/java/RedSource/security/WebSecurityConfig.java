@@ -16,6 +16,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 
@@ -80,17 +81,23 @@ public class WebSecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Allow requests from the frontend
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
+        // Allow all origins
+        configuration.addAllowedOriginPattern("*");
         
         // Allow all HTTP methods
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
         
         // Allow all headers
         configuration.setAllowedHeaders(Arrays.asList("*"));
         
-        // Allow credentials (for JWT tokens)
-        configuration.setAllowCredentials(true);
+        // Expose all headers
+        configuration.setExposedHeaders(Arrays.asList("*"));
+        
+        // Don't allow credentials when using wildcard origins
+        configuration.setAllowCredentials(false);
+        
+        // Cache preflight for 1 hour
+        configuration.setMaxAge(3600L);
         
         // Apply this configuration to all paths
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
