@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.mongodb.config.AbstractMongoClientConfiguration;
 
 @Configuration
-@ConditionalOnProperty(name = "spring.data.mongodb.uri", matchIfMissing = false)
+@ConditionalOnProperty(name = "spring.data.mongodb.uri")
 public class MongoConfig extends AbstractMongoClientConfiguration {
 
     @Override
