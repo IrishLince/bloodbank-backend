@@ -1,0 +1,48 @@
+# Blood Bank System API Test Commands
+# Replace tokens if they expire. All commands assume server running at http://localhost:8080
+
+# --- List of IDs used ---
+set DONOR_ID=681cdb5cea73ab2ca3e114e2
+set BLOOD_BANK_ID=681cde18ea73ab2ca3e114e9
+set HOSPITAL_ID=681cd7d5e37e8572a1a69b1c
+set HOSPITAL_REQUEST_ID=681ce023ea73ab2ca3e114ec
+set ACCESS_TOKEN=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0dXNlckBleGFtcGxlLmNvbSIsImlhdCI6MTc0NjcyMjMxNiwiZXhwIjoxNzQ2NzI1OTE2fQ.kvzvVfJTNCmu49jPbXkEA9v3oI4cPqcbp-Diw42SnPc
+
+# --- Authentication ---
+# Sign up a new user
+curl -X POST http://localhost:8080/api/auth/signup -H "Content-Type: application/json" -d "{\"name\":\"Test User\",\"email\":\"testuser1@example.com\",\"password\":\"password123\",\"role\":\"DONOR\",\"contactInformation\":\"123-456-7890\",\"bloodType\":\"A+\"}"
+
+# Sign in to get a token
+curl -X POST http://localhost:8080/api/auth/signin -H "Content-Type: application/json" -d "{\"email\":\"testuser1@example.com\",\"password\":\"password123\"}"
+
+# --- Donor History ---
+curl -X POST http://localhost:8080/api/donor-history -H "Authorization: Bearer %ACCESS_TOKEN%" -H "Content-Type: application/json" -d "{\"donorId\":\"%DONOR_ID%\",\"bloodBankId\":\"%BLOOD_BANK_ID%\",\"donationDate\":\"2025-05-09T10:00:00Z\",\"volumeDonated\":0.5}"
+curl -X GET http://localhost:8080/api/donor-history -H "Authorization: Bearer %ACCESS_TOKEN%"
+
+# --- Blood Bank ---
+curl -X GET http://localhost:8080/api/blood-banks -H "Authorization: Bearer %ACCESS_TOKEN%"
+
+# --- Hospital Request ---
+curl -X POST http://localhost:8080/api/hospital-requests -H "Authorization: Bearer %ACCESS_TOKEN%" -H "Content-Type: application/json" -d "{\"hospitalId\":\"%HOSPITAL_ID%\",\"bloodBankId\":\"%BLOOD_BANK_ID%\",\"bloodType\":\"O+\",\"quantity\":2,\"status\":\"PENDING\",\"requestDate\":\"2025-05-09T12:00:00Z\"}"
+curl -X GET http://localhost:8080/api/hospital-requests -H "Authorization: Bearer %ACCESS_TOKEN%"
+
+# --- Fulfillment ---
+curl -X POST http://localhost:8080/api/fulfillments -H "Authorization: Bearer %ACCESS_TOKEN%" -H "Content-Type: application/json" -d "{\"hospitalRequestId\":\"%HOSPITAL_REQUEST_ID%\",\"bloodBankId\":\"%BLOOD_BANK_ID%\",\"quantity\":2,\"status\":\"PENDING\",\"fulfillmentDate\":\"2025-05-09T13:00:00Z\"}"
+curl -X GET http://localhost:8080/api/fulfillments -H "Authorization: Bearer %ACCESS_TOKEN%"
+
+# --- Medical Assessment ---
+curl -X POST http://localhost:8080/api/medical-assessments -H "Authorization: Bearer %ACCESS_TOKEN%" -H "Content-Type: application/json" -d "{\"userId\":\"%DONOR_ID%\",\"bloodBankId\":\"%BLOOD_BANK_ID%\",\"hemoglobinLevel\":13.5,\"bloodPressure\":\"120/80\",\"status\":\"PASSED\",\"assessmentDate\":\"2025-05-09T14:00:00Z\"}"
+curl -X GET http://localhost:8080/api/medical-assessments -H "Authorization: Bearer %ACCESS_TOKEN%"
+
+# --- Reward Points ---
+curl -X POST http://localhost:8080/api/reward-points -H "Authorization: Bearer %ACCESS_TOKEN%" -H "Content-Type: application/json" -d "{\"donorId\":\"%DONOR_ID%\",\"points\":100,\"lastUpdated\":\"2025-05-09T15:00:00Z\"}"
+curl -X GET http://localhost:8080/api/reward-points -H "Authorization: Bearer %ACCESS_TOKEN%"
+
+# --- Vital Signs ---
+curl -X POST http://localhost:8080/api/vital-signs -H "Authorization: Bearer %ACCESS_TOKEN%" -H "Content-Type: application/json" -d "{\"userId\":\"%DONOR_ID%\",\"bloodPressure\":\"118/78\",\"heartRate\":72,\"temperature\":36.7,\"weight\":68.5,\"height\":172.0,\"measurementDate\":\"2025-05-09T16:00:00Z\"}"
+curl -X GET http://localhost:8080/api/vital-signs -H "Authorization: Bearer %ACCESS_TOKEN%"
+
+# --- User List (for reference) ---
+curl -X GET http://localhost:8080/api/user -H "Authorization: Bearer %ACCESS_TOKEN%"
+
+# Note: If your token expires, log in again and update ACCESS_TOKEN above.
