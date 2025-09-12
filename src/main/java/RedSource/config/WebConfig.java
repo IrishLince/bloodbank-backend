@@ -35,9 +35,10 @@ public class WebConfig implements WebMvcConfigurer {
         
         registry.addMapping("/**")
                 .allowedOriginPatterns(origins.toArray(new String[0]))
+                .allowedOrigins("*") // Allow all origins temporarily for debugging
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
                 .allowedHeaders("*")
-                .allowCredentials(true)
+                .allowCredentials(false) // Must be false when using allowedOrigins("*")
                 .maxAge(3600);
     }
 }
