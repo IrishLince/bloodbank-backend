@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ['openjdk17']
+
+[phases.build]
+cmds = ['mvn clean compile package -DskipTests']
+
+[start]
+cmd = 'java -Dspring.profiles.active=production -Dserver.port=$PORT -jar target/app-0.0.1-SNAPSHOT.jar'
