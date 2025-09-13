@@ -4,12 +4,15 @@ import RedSource.entities.Token;
 import RedSource.services.TokenService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/test")
@@ -20,6 +23,16 @@ public class TestController {
 
     @Autowired
     private TokenService tokenService;
+    
+    // Add ping endpoint for health check
+    @GetMapping("/ping")
+    public ResponseEntity<?> ping() {
+        return ResponseEntity.ok(Map.of(
+            "status", "success",
+            "message", "API is up and running",
+            "timestamp", System.currentTimeMillis()
+        ));
+    }
 
     @GetMapping("/db")
     public ResponseEntity<?> testDatabase() {
@@ -111,7 +124,7 @@ public class TestController {
     @GetMapping("/tokens-sample")
     public ResponseEntity<?> getTokensSample() {
         try {
-            List<Token> tokens = tokenRepository.findAll();
+            List<Token> tokens = tokenService.findAllValidTokens();
             List<Map<String, Object>> sampleTokens = tokens.stream()
                 .limit(3)
                 .map(token -> {
@@ -135,8 +148,8 @@ public class TestController {
     @DeleteMapping("/clear-tokens")
     public ResponseEntity<?> clearAllTokens() {
         try {
-            long count = tokenRepository.count();
-            tokenRepository.deleteAll();
+            long count = tokenService.countAllTokens();
+            tokenService.deleteAllTokens();
             Map<String, Object> response = new HashMap<>();
             response.put("message", "All tokens cleared successfully");
             response.put("deletedCount", count);

@@ -149,4 +149,26 @@ public class TokenService {
     public Token save(Token token) {
         return tokenRepository.save(token);
     }
+    
+    public List<Token> findAllValidTokens() {
+        logger.debug("Finding all valid tokens");
+        List<Token> tokens = tokenRepository.findAll().stream()
+            .filter(token -> !token.isExpired() && !token.isRevoked())
+            .toList();
+        logger.debug("Found {} valid tokens", tokens.size());
+        return tokens;
+    }
+    
+    public long countAllTokens() {
+        logger.debug("Counting all tokens");
+        long count = tokenRepository.count();
+        logger.debug("Total token count: {}", count);
+        return count;
+    }
+    
+    public void deleteAllTokens() {
+        logger.info("Deleting all tokens");
+        tokenRepository.deleteAll();
+        logger.info("All tokens deleted successfully");
+    }
 }
