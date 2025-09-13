@@ -50,12 +50,17 @@ public class TestController {
     @GetMapping("/health")
     public ResponseEntity<?> health() {
         return ResponseEntity.ok(Map.of(
-            "status", "healthy",
+            "status", "UP",
             "application", "RedSource Blood Bank",
             "timestamp", System.currentTimeMillis(),
             "environment", System.getenv("SPRING_PROFILES_ACTIVE"),
             "port", System.getenv("PORT")
         ));
+    }
+    
+    @GetMapping("/ping")
+    public ResponseEntity<?> ping() {
+        return ResponseEntity.ok(Map.of("status", "UP", "timestamp", System.currentTimeMillis()));
     }
 
     @GetMapping("/cors")
