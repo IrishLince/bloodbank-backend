@@ -1,0 +1,27 @@
+# Maven build files
+target/
+!target/app-0.0.1-SNAPSHOT.jar
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# Git files
+.git/
+.gitignore
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
