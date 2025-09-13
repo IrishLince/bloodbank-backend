@@ -2,17 +2,14 @@ package RedSource.controller;
 
 import RedSource.entities.Token;
 import RedSource.services.TokenService;
-import RedSource.repositories.TokenRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/test")
@@ -23,9 +20,6 @@ public class TestController {
 
     @Autowired
     private TokenService tokenService;
-    
-    @Autowired
-    private TokenRepository tokenRepository;
 
     @GetMapping("/db")
     public ResponseEntity<?> testDatabase() {
@@ -50,17 +44,12 @@ public class TestController {
     @GetMapping("/health")
     public ResponseEntity<?> health() {
         return ResponseEntity.ok(Map.of(
-            "status", "UP",
+            "status", "healthy",
             "application", "RedSource Blood Bank",
             "timestamp", System.currentTimeMillis(),
             "environment", System.getenv("SPRING_PROFILES_ACTIVE"),
             "port", System.getenv("PORT")
         ));
-    }
-    
-    @GetMapping("/ping")
-    public ResponseEntity<?> ping() {
-        return ResponseEntity.ok(Map.of("status", "UP", "timestamp", System.currentTimeMillis()));
     }
 
     @GetMapping("/cors")
