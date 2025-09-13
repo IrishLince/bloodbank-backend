@@ -5,7 +5,7 @@
   },
   "deploy": {
     "startCommand": "java -Dspring.profiles.active=production -Dserver.port=$PORT -jar target/app-0.0.1-SNAPSHOT.jar",
-    "healthcheckPath": "/actuator/health",
+    "healthcheckPath": "/api/test/ping",
     "healthcheckTimeout": 180,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
