@@ -1,13 +1,15 @@
 package RedSource.controller;
 
+import RedSource.entities.Token;
+import RedSource.services.TokenService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 @RestController
 @RequestMapping("/api/test")
@@ -15,6 +17,9 @@ public class TestController {
 
     @Autowired
     private MongoTemplate mongoTemplate;
+
+    @Autowired
+    private TokenService tokenService;
 
     @GetMapping("/db")
     public ResponseEntity<?> testDatabase() {
@@ -55,5 +60,90 @@ public class TestController {
             "allowedOrigins", System.getenv("CORS_ALLOWED_ORIGINS"),
             "timestamp", System.currentTimeMillis()
         ));
+    }
+
+    @GetMapping("/tokens/{userId}")
+    public ResponseEntity<?> getTokensForUser(@PathVariable String userId) {
+        try {
+            List<Token> tokens = tokenService.findAllValidTokensByUser(userId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("userId", userId);
+            response.put("tokenCount", tokens.size());
+            response.put("tokens", tokens);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    @GetMapping("/token-check/{token}")
+    public ResponseEntity<?> checkToken(@PathVariable String token) {
+        try {
+            boolean isValid = tokenService.isTokenValid(token);
+            Map<String, Object> response = new HashMap<>();
+            response.put("token", token.substring(0, Math.min(token.length(), 20)) + "...");
+            response.put("isValid", isValid);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    @GetMapping("/tokens-count")
+    public ResponseEntity<?> getAllTokensCount() {
+        try {
+            long count = mongoTemplate.getCollection("tokens").countDocuments();
+            Map<String, Object> response = new HashMap<>();
+            response.put("totalTokens", count);
+            response.put("message", "Total tokens in database");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    @GetMapping("/tokens-sample")
+    public ResponseEntity<?> getTokensSample() {
+        try {
+            List<Token> tokens = tokenRepository.findAll();
+            List<Map<String, Object>> sampleTokens = tokens.stream()
+                .limit(3)
+                .map(token -> {
+                    Map<String, Object> tokenInfo = new HashMap<>();
+                    tokenInfo.put("createdAt", token.getCreatedAt());
+                    tokenInfo.put("tokenPreview", token.getToken().substring(0, Math.min(token.getToken().length(), 30)) + "...");
+                    return tokenInfo;
+                })
+                .collect(Collectors.toList());
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("sampleTokens", sampleTokens);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+    
+    @DeleteMapping("/clear-tokens")
+    public ResponseEntity<?> clearAllTokens() {
+        try {
+            long count = tokenRepository.count();
+            tokenRepository.deleteAll();
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "All tokens cleared successfully");
+            response.put("deletedCount", count);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error clearing tokens: " + e.getMessage());
+        }
     }
 }

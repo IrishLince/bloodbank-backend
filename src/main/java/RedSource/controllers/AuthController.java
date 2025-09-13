@@ -71,11 +71,14 @@ public class AuthController {
 
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+        logger.info("Login attempt for email: {}", loginRequest.getEmail());
+        
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = jwtUtils.generateJwtToken(authentication);
+        logger.info("Generated JWT token for user: {}", loginRequest.getEmail());
         
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         List<String> roles = userDetails.getAuthorities().stream()
@@ -96,8 +99,15 @@ public class AuthController {
         Date accessTokenExpirationDate = jwtUtils.getExpirationDateFromToken(jwt);
         Date refreshTokenExpirationDate = jwtUtils.getExpirationDateFromToken(refreshToken);
         
-        tokenService.saveAccessToken(user, jwt, accessTokenExpirationDate);
-        tokenService.saveRefreshToken(user, refreshToken, refreshTokenExpirationDate);
+        logger.info("Saving tokens for user: {} after successful authentication", user.getId());
+        try {
+            tokenService.saveAccessToken(user, jwt, accessTokenExpirationDate);
+            tokenService.saveRefreshToken(user, refreshToken, refreshTokenExpirationDate);
+            logger.info("Successfully saved both ACCESS and REFRESH tokens for user: {}", user.getId());
+        } catch (Exception e) {
+            logger.error("Failed to save tokens for user: {}. Error: {}", user.getId(), e.getMessage(), e);
+            throw new RuntimeException("Failed to save authentication tokens", e);
+        }
 
         return ResponseEntity.ok(new JwtResponse(jwt,
                                                  refreshToken,
@@ -145,6 +155,14 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<?> getCurrentUser(@AuthenticationPrincipal UserDetailsImpl userDetails) {
         try {
+            if (userDetails == null) {
+                logger.warn("UserDetails is null - authentication failed");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new MessageResponse("Authentication required"));
+            }
+            
+            logger.debug("Getting current user profile for: {}", userDetails.getUsername());
+            
             // Get the current user from the database
             User user = userRepository.findByEmail(userDetails.getUsername())
                     .orElseThrow(() -> new RuntimeException("User not found"));
@@ -164,8 +182,10 @@ public class AuthController {
             response.put("dateOfBirth", user.getDateOfBirth());
             response.put("profilePhotoUrl", user.getProfilePhotoUrl());
             
+            logger.debug("Successfully retrieved user profile for: {}", user.getEmail());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            logger.error("Error fetching user profile: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error fetching user profile: " + e.getMessage()));
         }
