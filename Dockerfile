@@ -24,5 +24,11 @@ EXPOSE 8080
 # Set environment variables
 ENV SPRING_PROFILES_ACTIVE=production
 
-# Run the application
-CMD ["java", "-jar", "target/app-0.0.1-SNAPSHOT.jar"]
+# Set MongoDB connection timeout and retry options
+ENV SPRING_DATA_MONGODB_CONNECT_TIMEOUT=10000
+ENV SPRING_DATA_MONGODB_SOCKET_TIMEOUT=10000
+ENV SPRING_DATA_MONGODB_MAX_WAIT_TIME=10000
+ENV SPRING_DATA_MONGODB_SERVER_SELECTION_TIMEOUT=10000
+
+# Run the application with health check readiness delay
+CMD ["java", "-Dmanagement.endpoint.health.probes.add-additional-paths=true", "-Dmanagement.health.livenessstate.enabled=true", "-Dmanagement.health.readinessstate.enabled=true", "-jar", "target/app-0.0.1-SNAPSHOT.jar"]

@@ -31,6 +31,9 @@ public class HealthController {
         components.put("db", Map.of("status", "UP"));
         
         response.put("components", components);
+        response.put("groups", Map.of(
+            "readiness", Map.of("status", "UP", "components", components)
+        ));
         
         return ResponseEntity.ok(response);
     }
