@@ -76,13 +76,8 @@ public class JwtUtils {
 
     public boolean validateJwtToken(String authToken) {
         try {
-            // First check if token is in database and valid
-            if (!tokenService.isTokenValid(authToken)) {
-                logger.error("Token is not found in database or has been revoked");
-                return false;
-            }
-            
-            // Then verify the JWT signature and expiration
+            // Only verify the JWT signature and expiration
+            // Database validation is handled separately in AuthTokenFilter
             Jwts.parserBuilder().setSigningKey(key()).build().parseClaimsJws(authToken);
             return true;
         } catch (MalformedJwtException e) {
