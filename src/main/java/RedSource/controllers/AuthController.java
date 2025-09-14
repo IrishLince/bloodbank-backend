@@ -1,7 +1,5 @@
 package RedSource.controllers;
 
-import RedSource.entities.Token;
-
 import RedSource.entities.User;
 import RedSource.entities.DTO.auth.JwtResponse;
 import RedSource.entities.DTO.auth.LoginRequest;
@@ -42,12 +40,17 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
 
 @CrossOrigin(origins = "*", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
+    
+    // Synchronization map to prevent concurrent login attempts for same user
+    private final ConcurrentHashMap<String, Object> loginLocks = new ConcurrentHashMap<>();
+    
     @Autowired
     AuthenticationManager authenticationManager;
 
@@ -73,49 +76,59 @@ public class AuthController {
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
         logger.info("Login attempt for email: {}", loginRequest.getEmail());
         
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));
+        // Get or create a lock for this user's email to prevent concurrent logins
+        Object lock = loginLocks.computeIfAbsent(loginRequest.getEmail(), k -> new Object());
+        
+        synchronized (lock) {
+            try {
+                Authentication authentication = authenticationManager.authenticate(
+                        new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = jwtUtils.generateJwtToken(authentication);
-        logger.info("Generated JWT token for user: {}", loginRequest.getEmail());
-        
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-        List<String> roles = userDetails.getAuthorities().stream()
-                .map(item -> item.getAuthority())
-                .collect(Collectors.toList());
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+                String jwt = jwtUtils.generateJwtToken(authentication);
+                logger.info("Generated JWT token for user: {}", loginRequest.getEmail());
                 
-        // Get the user from repository
-        User user = userRepository.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+                List<String> roles = userDetails.getAuthorities().stream()
+                        .map(item -> item.getAuthority())
+                        .collect(Collectors.toList());
+                        
+                // Get the user from repository
+                User user = userRepository.findByEmail(userDetails.getUsername())
+                        .orElseThrow(() -> new RuntimeException("User not found"));
+                        
+                // Revoke all existing access tokens for this user
+                tokenService.revokeAllUserAccessTokens(user.getId());
                 
-        // Revoke all existing access tokens for this user
-        tokenService.revokeAllUserAccessTokens(user.getId());
+                // Generate refresh token
+                String refreshToken = jwtUtils.generateRefreshToken(authentication);
         
-        // Generate refresh token
-        String refreshToken = jwtUtils.generateRefreshToken(authentication);
-        
-        // Save the new tokens in MongoDB
-        Date accessTokenExpirationDate = jwtUtils.getExpirationDateFromToken(jwt);
-        Date refreshTokenExpirationDate = jwtUtils.getExpirationDateFromToken(refreshToken);
-        
-        logger.info("Saving tokens for user: {} after successful authentication", user.getId());
-        try {
-            tokenService.saveAccessToken(user, jwt, accessTokenExpirationDate);
-            tokenService.saveRefreshToken(user, refreshToken, refreshTokenExpirationDate);
-            logger.info("Successfully saved both ACCESS and REFRESH tokens for user: {}", user.getId());
-        } catch (Exception e) {
-            logger.error("Failed to save tokens for user: {}. Error: {}", user.getId(), e.getMessage(), e);
-            throw new RuntimeException("Failed to save authentication tokens", e);
+                // Save the new tokens in MongoDB
+                Date accessTokenExpirationDate = jwtUtils.getExpirationDateFromToken(jwt);
+                Date refreshTokenExpirationDate = jwtUtils.getExpirationDateFromToken(refreshToken);
+                
+                logger.info("Saving tokens for user: {} after successful authentication", user.getId());
+                try {
+                    tokenService.saveAccessToken(user, jwt, accessTokenExpirationDate);
+                    tokenService.saveRefreshToken(user, refreshToken, refreshTokenExpirationDate);
+                    logger.info("Successfully saved both ACCESS and REFRESH tokens for user: {}", user.getId());
+                } catch (Exception e) {
+                    logger.error("Failed to save tokens for user: {}. Error: {}", user.getId(), e.getMessage(), e);
+                    throw new RuntimeException("Failed to save authentication tokens", e);
+                }
+
+                return ResponseEntity.ok(new JwtResponse(jwt,
+                                                         refreshToken,
+                                                         userDetails.getId(),
+                                                         user.getName(), // Add user's name to the response
+                                                         userDetails.getEmail(),
+                                                         user.getProfilePhotoUrl(), // Add profile photo URL
+                                                         roles));
+            } finally {
+                // Clean up the lock after processing
+                loginLocks.remove(loginRequest.getEmail());
+            }
         }
-
-        return ResponseEntity.ok(new JwtResponse(jwt,
-                                                 refreshToken,
-                                                 userDetails.getId(),
-                                                 user.getName(), // Add user's name to the response
-                                                 userDetails.getEmail(),
-                                                 user.getProfilePhotoUrl(), // Add profile photo URL
-                                                 roles));
     }
 
     @PostMapping("/refresh")

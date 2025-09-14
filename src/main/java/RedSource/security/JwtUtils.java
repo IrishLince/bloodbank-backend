@@ -48,6 +48,7 @@ public class JwtUtils {
                 .setSubject(username)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
+                .setId(java.util.UUID.randomUUID().toString()) // Add unique ID to prevent duplicates
                 .signWith(key(), SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -57,6 +58,7 @@ public class JwtUtils {
                 .setSubject(username)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date((new Date()).getTime() + refreshTokenExpirationMs))
+                .setId(java.util.UUID.randomUUID().toString()) // Add unique ID to prevent duplicates
                 .signWith(key(), SignatureAlgorithm.HS256)
                 .compact();
     }
