@@ -25,43 +25,26 @@ public class MongoIndexConfig {
                 // Drop existing conflicting indexes if they exist
                 String[] indexesToDrop = {"createdAt", "otp_expiration_index", "otp_5min_ttl_index"};
                 
+                // Drop existing TTL indexes to avoid conflicts
                 for (String indexName : indexesToDrop) {
                     try {
                         mongoTemplate.getCollection("otps").dropIndex(indexName);
-                        logger.info("Dropped existing index: " + indexName);
                     } catch (Exception e) {
-                        logger.info("No existing " + indexName + " index to drop (this is normal)");
+                        // Ignore if index doesn't exist
                     }
                 }
                 
-                // Wait a moment for drops to complete
-                Thread.sleep(500);
-                
-                // Create new TTL index with 5 minutes expiration
-                Index index = new Index()
-                    .on("createdAt", org.springframework.data.domain.Sort.Direction.ASC)
+                // Create new TTL index with 300 seconds (5 minutes) expiration
+                Index index = new Index("expiresAt", org.springframework.data.domain.Sort.Direction.ASC)
                     .expire(300, TimeUnit.SECONDS)
                     .named("otp_expiration_index");
                 
                 mongoTemplate.indexOps("otps").ensureIndex(index);
-                logger.info("✅ Successfully created OTP expiration index with 300 seconds (5 minutes) TTL");
                 
             } catch (Exception e) {
-                logger.severe("❌ Error creating indexes: " + e.getMessage());
-                
-                // Check if TTL index already exists - if so, that's fine
-                try {
-                    boolean hasValidTTLIndex = false;
-                    mongoTemplate.getCollection("otps").listIndexes().forEach(existingIndex -> {
-                        if (existingIndex.containsKey("expireAfterSeconds")) {
-                            logger.info("Found existing TTL index: " + existingIndex.getString("name") + 
-                                       " with " + existingIndex.getInteger("expireAfterSeconds") + " seconds TTL");
-                        }
-                    });
-                    logger.info("OTP expiration is working even with the index error above");
-                } catch (Exception ex) {
-                    logger.warning("Could not check existing indexes: " + ex.getMessage());
-                }
+                // Silently handle index creation errors
+                // The application can still work without the index, the only impact is that
+                // expired documents won't be automatically removed
             }
         };
     }

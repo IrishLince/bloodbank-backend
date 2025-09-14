@@ -74,55 +74,47 @@ public class AuthController {
 
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
-        logger.info("Login attempt for email: {}", loginRequest.getEmail());
-        
         // Get or create a lock for this user's email to prevent concurrent logins
         Object lock = loginLocks.computeIfAbsent(loginRequest.getEmail(), k -> new Object());
         
+        // Synchronize on the lock to prevent concurrent logins for the same user
         synchronized (lock) {
             try {
                 Authentication authentication = authenticationManager.authenticate(
-                        new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));
+                    new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
                 String jwt = jwtUtils.generateJwtToken(authentication);
-                logger.info("Generated JWT token for user: {}", loginRequest.getEmail());
                 
                 UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
                 List<String> roles = userDetails.getAuthorities().stream()
-                        .map(item -> item.getAuthority())
-                        .collect(Collectors.toList());
-                        
-                // Get the user from repository
-                User user = userRepository.findByEmail(userDetails.getUsername())
-                        .orElseThrow(() -> new RuntimeException("User not found"));
-                        
-                // Revoke all existing access tokens for this user
-                tokenService.revokeAllUserAccessTokens(user.getId());
+                    .map(item -> item.getAuthority())
+                    .collect(Collectors.toList());
                 
                 // Generate refresh token
                 String refreshToken = jwtUtils.generateRefreshToken(authentication);
-        
-                // Save the new tokens in MongoDB
+                
+                // Get the user entity to include in the response
+                User user = userRepository.findByEmail(userDetails.getEmail())
+                    .orElseThrow(() -> new RuntimeException("User not found with email: " + userDetails.getEmail()));
+                
+                // Set token expiration dates
                 Date accessTokenExpirationDate = jwtUtils.getExpirationDateFromToken(jwt);
                 Date refreshTokenExpirationDate = jwtUtils.getExpirationDateFromToken(refreshToken);
                 
-                logger.info("Saving tokens for user: {} after successful authentication", user.getId());
                 try {
                     tokenService.saveAccessToken(user, jwt, accessTokenExpirationDate);
                     tokenService.saveRefreshToken(user, refreshToken, refreshTokenExpirationDate);
-                    logger.info("Successfully saved both ACCESS and REFRESH tokens for user: {}", user.getId());
                 } catch (Exception e) {
-                    logger.error("Failed to save tokens for user: {}. Error: {}", user.getId(), e.getMessage(), e);
                     throw new RuntimeException("Failed to save authentication tokens", e);
                 }
 
                 return ResponseEntity.ok(new JwtResponse(jwt,
                                                          refreshToken,
                                                          userDetails.getId(),
-                                                         user.getName(), // Add user's name to the response
+                                                         user.getName(), 
                                                          userDetails.getEmail(),
-                                                         user.getProfilePhotoUrl(), // Add profile photo URL
+                                                         user.getProfilePhotoUrl(), 
                                                          roles));
             } finally {
                 // Clean up the lock after processing
@@ -169,16 +161,13 @@ public class AuthController {
     public ResponseEntity<?> getCurrentUser(@AuthenticationPrincipal UserDetailsImpl userDetails) {
         try {
             if (userDetails == null) {
-                logger.warn("UserDetails is null - authentication failed");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(new MessageResponse("Authentication required"));
             }
             
-            logger.debug("Getting current user profile for: {}", userDetails.getUsername());
-            
             // Get the current user from the database
             User user = userRepository.findByEmail(userDetails.getUsername())
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+                    .orElseThrow(() -> new RuntimeException("User not found with email: " + userDetails.getUsername()));
             
             // Create a response with the user's details
             Map<String, Object> response = new HashMap<>();
@@ -195,10 +184,8 @@ public class AuthController {
             response.put("dateOfBirth", user.getDateOfBirth());
             response.put("profilePhotoUrl", user.getProfilePhotoUrl());
             
-            logger.debug("Successfully retrieved user profile for: {}", user.getEmail());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            logger.error("Error fetching user profile: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error fetching user profile: " + e.getMessage()));
         }
@@ -448,25 +435,45 @@ public class AuthController {
                     .build();
 
             // Store photo if provided
+            String photoUrl = null;
             if (photo != null && !photo.isEmpty()) {
                 try {
-                    String url = fileStorageService.storeUserPhoto(photo);
-                    user.setProfilePhotoUrl(url);
+                    photoUrl = fileStorageService.storeUserPhoto(photo);
+                    user.setProfilePhotoUrl(photoUrl);
                 } catch (Exception ex) {
-                    logger.warn("Invalid photo provided for user signup (email: {}). Proceeding without photo. Reason: {}", signUpRequest.getEmail(), ex.getMessage());
+                    // If photo upload fails, clean up the uploaded file if any
+                    if (photoUrl != null) {
+                        try {
+                            fileStorageService.deleteFile(photoUrl);
+                        } catch (Exception deleteEx) {
+                            // Log the error but continue with registration
+                            System.err.println("Failed to clean up photo after upload error: " + deleteEx.getMessage());
+                        }
+                    }
+                    // Proceed without photo if there's an error
+                    user.setProfilePhotoUrl(null);
                 }
             }
 
-            logger.info("Saving new user: email={}, username={}", user.getEmail(), user.getUsername());
-            userRepository.save(user);
-            otpService.cleanupVerifiedOTP(normalizedPhone, signUpRequest.getEmail());
-            logger.info("User saved and OTP cleaned up: email={}", user.getEmail());
-            return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
+            try {
+                userRepository.save(user);
+                otpService.cleanupVerifiedOTP(normalizedPhone, signUpRequest.getEmail());
+                return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
+            } catch (Exception e) {
+                // If user registration fails, clean up the uploaded photo
+                if (photoUrl != null) {
+                    try {
+                        fileStorageService.deleteFile(photoUrl);
+                    } catch (Exception deleteEx) {
+                        System.err.println("Failed to clean up photo after registration error: " + deleteEx.getMessage());
+                    }
+                }
+                throw e;
+            }
         } catch (Exception e) {
-            logger.error("Registration failed for email={}: {}", signUpRequest.getEmail(), e.getMessage(), e);
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new MessageResponse("Registration failed: " + e.getMessage()));
+                    .body(new MessageResponse("Error: " + e.getMessage()));
         }
     }
 
@@ -512,8 +519,6 @@ public class AuthController {
             
             return ResponseEntity.ok(new MessageResponse(result));
         } catch (Exception e) {
-
-            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error sending OTP: " + e.getMessage()));
         }
@@ -650,7 +655,6 @@ public class AuthController {
             
             return ResponseEntity.ok(new MessageResponse(result));
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error sending phone verification OTP: " + e.getMessage()));
         }
@@ -701,7 +705,6 @@ public class AuthController {
             
             return ResponseEntity.ok(new MessageResponse(result));
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error sending forgot password OTP: " + e.getMessage()));
         }
@@ -785,7 +788,6 @@ public class AuthController {
             
             return ResponseEntity.ok(new MessageResponse("Password reset successfully. Please log in with your new password."));
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error resetting password: " + e.getMessage()));
         }
@@ -843,7 +845,6 @@ public class AuthController {
             
             return ResponseEntity.ok(new MessageResponse("OTP verified successfully. You can now reset your password."));
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error verifying OTP: " + e.getMessage()));
         }

@@ -35,32 +35,25 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         try {
             String jwt = parseJwt(request);
-            if (jwt != null) {
-                logger.debug("Extracted JWT token from request: {}", jwt.substring(0, Math.min(jwt.length(), 20)) + "...");
-            }
             if (jwt != null && tokenService.isTokenValid(jwt) && jwtUtils.validateJwtToken(jwt)) {
                 String username = jwtUtils.getUserNameFromJwtToken(jwt);
-
+                
                 try {
-                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                    UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                    
                     if (userDetails != null) {
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                userDetails.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                                userDetails, null, userDetails.getAuthorities());
+                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
                     }
                 } catch (org.springframework.security.core.userdetails.UsernameNotFoundException e) {
-                    logger.warn("User not found for JWT token with username: {} - Token may be stale", username);
-                    // Don't throw exception, just skip authentication for this request
-                    // This allows the request to proceed as unauthenticated
+                    // User not found, token may be stale - continue unauthenticated
                 }
             }
         } catch (Exception e) {
-            logger.error("Cannot set user authentication: {}", e.getMessage());
+            // Logging handled by the AuthEntryPointJwt
         }
 
         filterChain.doFilter(request, response);

@@ -23,12 +23,10 @@ public class AppApplication {
 	
 	@EventListener(ApplicationReadyEvent.class)
 	public void onApplicationReady() {
-		logger.info("Application started - cleaning up old tokens without UUID");
 		try {
 			tokenService.cleanupOldTokensWithoutUUID();
-			logger.info("Old token cleanup completed successfully");
 		} catch (Exception e) {
-			logger.error("Failed to cleanup old tokens: {}", e.getMessage(), e);
+			// Silently handle any errors during token cleanup
 		}
 	}
 

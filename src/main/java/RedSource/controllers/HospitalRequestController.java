@@ -81,16 +81,13 @@ public class HospitalRequestController {
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            e.printStackTrace(); // Log the stack trace
-            
             // Create a HashMap instead of Map.of() for more flexibility
             HashMap<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("status", false);
-            errorResponse.put("statusCode", 500);
-            errorResponse.put("message", e.getMessage() != null ? e.getMessage() : "Unknown error occurred");
+            errorResponse.put("success", false);
+            errorResponse.put("message", "Failed to process request: " + e.getMessage());
             
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(errorResponse);
+                    .body(errorResponse);
         }
     }
 }

@@ -1,33 +1,38 @@
-HELP.md
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Maven
 target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 
-### STS ###
+# IDE specific files
+.idea/
+*.iws
+*.iml
+*.ipr
 .apt_generated
 .classpath
 .factorypath
 .project
-.settings
+.settings/
 .springBeans
 .sts4-cache
 
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
+# Build
+target/
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
+
+# Logs
+*.log
+
+# Local development
+uploads/
 
 ### VS Code ###
 .vscode/

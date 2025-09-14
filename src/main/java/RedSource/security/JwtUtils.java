@@ -82,21 +82,14 @@ public class JwtUtils {
             // Database validation is handled separately in AuthTokenFilter
             Jwts.parserBuilder().setSigningKey(key()).build().parseClaimsJws(authToken);
             return true;
-        } catch (MalformedJwtException e) {
-            logger.error("Invalid JWT token: {}", e.getMessage());
+        } catch (MalformedJwtException | UnsupportedJwtException | IllegalArgumentException e) {
+            // Logging handled by the AuthEntryPointJwt
         } catch (ExpiredJwtException e) {
-            logger.error("JWT token is expired: {}", e.getMessage());
             // Mark token as expired in database
-            Optional<Token> tokenOpt = tokenService.findByToken(authToken);
-            if (tokenOpt.isPresent()) {
-                Token token = tokenOpt.get();
+            tokenService.findByToken(authToken).ifPresent(token -> {
                 token.setExpired(true);
                 tokenService.save(token);
-            }
-        } catch (UnsupportedJwtException e) {
-            logger.error("JWT token is unsupported: {}", e.getMessage());
-        } catch (IllegalArgumentException e) {
-            logger.error("JWT claims string is empty: {}", e.getMessage());
+            });
         }
         return false;
     }

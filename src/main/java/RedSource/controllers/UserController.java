@@ -301,11 +301,22 @@ public class UserController {
                 );
             }
 
-            // Store the photo
+            User user = userOpt.get();
+            
+            // Delete old photo if exists
+            if (user.getProfilePhotoUrl() != null && !user.getProfilePhotoUrl().isEmpty()) {
+                try {
+                    fileStorageService.deleteFile(user.getProfilePhotoUrl());
+                } catch (Exception e) {
+                    // Log the error but continue with the upload
+                    System.err.println("Failed to delete old profile photo: " + e.getMessage());
+                }
+            }
+            
+            // Store the new photo
             String photoUrl = fileStorageService.storeUserPhoto(photo);
             
             // Update user's profile photo URL
-            User user = userOpt.get();
             user.setProfilePhotoUrl(photoUrl);
             user.setUpdatedAt(new Date());
             
@@ -384,8 +395,19 @@ public class UserController {
 
             User user = userOpt.get();
             
+            // Delete the photo from storage if it exists
+            if (user.getProfilePhotoUrl() != null && !user.getProfilePhotoUrl().isEmpty()) {
+                try {
+                    fileStorageService.deleteFile(user.getProfilePhotoUrl());
+                } catch (Exception e) {
+                    // Log the error but continue with the removal
+                    System.err.println("Failed to delete profile photo from storage: " + e.getMessage());
+                }
+            }
+            
             // Remove the profile photo URL from the user
             user.setProfilePhotoUrl(null);
+            user.setUpdatedAt(new Date());
             User updatedUser = userRepository.save(user);
 
             return ResponseEntity.ok(

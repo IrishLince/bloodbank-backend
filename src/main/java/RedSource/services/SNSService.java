@@ -1,17 +1,13 @@
 package RedSource.services;
 
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.services.sns.AmazonSNS;
+import com.amazonaws.services.sns.AmazonSNSClientBuilder;
+import com.amazonaws.services.sns.model.PublishRequest;
+import com.amazonaws.services.sns.model.PublishResult;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.sns.SnsClient;
-import software.amazon.awssdk.services.sns.model.PublishRequest;
-import software.amazon.awssdk.services.sns.model.PublishResponse;
-import software.amazon.awssdk.services.sns.model.SnsException;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-
-import java.time.Duration;
 
 import java.util.logging.Logger;
 
@@ -19,7 +15,7 @@ import java.util.logging.Logger;
 public class SNSService {
     private static final Logger logger = Logger.getLogger(SNSService.class.getName());
     
-    private final SnsClient snsClient;
+    private final AmazonSNS snsClient;
     
     @Value("${sms.testing.mode:true}")
     private boolean testingMode;
@@ -28,18 +24,11 @@ public class SNSService {
                      @Value("${aws.sns.access-key}") String accessKey,
                      @Value("${aws.sns.secret-key}") String secretKey) {
         
-        AwsBasicCredentials awsCredentials = AwsBasicCredentials.create(accessKey, secretKey);
+        BasicAWSCredentials awsCredentials = new BasicAWSCredentials(accessKey, secretKey);
         
-        // Configure client with timeout settings to prevent hanging
-        ClientOverrideConfiguration clientConfig = ClientOverrideConfiguration.builder()
-                .apiCallTimeout(Duration.ofSeconds(30))  // Total timeout for API call
-                .apiCallAttemptTimeout(Duration.ofSeconds(10))  // Timeout per attempt
-                .build();
-        
-        this.snsClient = SnsClient.builder()
-                .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(awsCredentials))
-                .overrideConfiguration(clientConfig)
+        this.snsClient = AmazonSNSClientBuilder.standard()
+                .withRegion(region)
+                .withCredentials(new AWSStaticCredentialsProvider(awsCredentials))
                 .build();
     }
     
@@ -54,54 +43,53 @@ public class SNSService {
             // Handle different input formats:
             // 639394123330 (12 digits) -> +639394123330
             // 9394123330 (10 digits) -> +639394123330
-            if (cleanNumber.startsWith("63") && cleanNumber.length() == 12) {
-                formattedPhoneNumber = "+" + cleanNumber; // +639394123330
-            } else if (cleanNumber.length() == 10) {
-                formattedPhoneNumber = "+63" + cleanNumber; // +639394123330    
+            if (cleanNumber.startsWith("1") && cleanNumber.length() == 11) {
+                // US/Canada number in E.164 format (e.g., 12065551212)
+                formattedPhoneNumber = "+" + cleanNumber;
+            } else if (cleanNumber.startsWith("63") && cleanNumber.length() == 12) {
+                // Philippine number in E.164 format (e.g., 639123456789)
+                formattedPhoneNumber = "+" + cleanNumber;
+            } else if (cleanNumber.length() == 10 && !cleanNumber.startsWith("0")) {
+                // Assuming US/Canada local number without country code (e.g., 2065551212)
+                formattedPhoneNumber = "+1" + cleanNumber;
+            } else if (cleanNumber.length() == 11 && cleanNumber.startsWith("0")) {
+                // Assuming Philippine local number with leading 0 (e.g., 09123456789)
+                formattedPhoneNumber = "+63" + cleanNumber.substring(1);
+            } else if (cleanNumber.length() == 10 && cleanNumber.startsWith("9")) {
+                // Assuming Philippine number without country code and leading 0 (e.g., 9123456789)
+                formattedPhoneNumber = "+63" + cleanNumber;
             } else {
-                // Invalid format, log and return false
-                logger.severe("Invalid phone number format: " + phoneNumber + " (expected 10 or 12 digits)");
+                // For any other format, just add + and hope for the best
+                formattedPhoneNumber = "+" + cleanNumber;
+                logger.warning("Unrecognized phone number format: " + phoneNumber);
+            }
+            
+            if (testingMode) {
+                logger.info("SMS sending is in testing mode. Would send to " + formattedPhoneNumber + ": " + message);
+                return true;
+            }
+            
+            try {
+                PublishRequest request = new PublishRequest()
+                    .withPhoneNumber(formattedPhoneNumber)
+                    .withMessage(message);
+                
+                PublishResult result = snsClient.publish(request);
+                logger.info("SMS sent to " + formattedPhoneNumber + ". Message ID: " + result.getMessageId());
+                return true;
+            } catch (Exception e) {
+                logger.severe("Error sending SMS: " + e.getMessage());
                 return false;
             }
-            
-            // Check if we're in testing mode to avoid consuming AWS credits
-            if (testingMode) {
-                logger.info("TESTING MODE: SMS not actually sent (saving AWS credits)");
-                logger.info("Would send to: " + formattedPhoneNumber);
-                logger.info("Message content: " + message);
-                logger.info("To enable actual SMS sending, set sms.testing.mode=false in application.properties");
-                return true; // Return success to allow normal application flow
-            }
-            
-            // Production mode - actually send SMS
-            logger.info("PRODUCTION MODE: Sending actual SMS to: " + formattedPhoneNumber);
-            
-            PublishRequest request = PublishRequest.builder()
-                    .phoneNumber(formattedPhoneNumber)
-                    .message(message)
-                    .build();
-            
-            PublishResponse response = snsClient.publish(request);
-            
-            logger.info("✅ SMS sent successfully! Message ID: " + response.messageId() + " to " + formattedPhoneNumber);
-            return true;
-            
-        } catch (SnsException e) {
-            logger.severe("Failed to send SMS: " + e.getMessage());
-            logger.severe("AWS Error Code: " + e.awsErrorDetails().errorCode());
-            logger.severe("AWS Error Message: " + e.awsErrorDetails().errorMessage());
-            e.printStackTrace();
-            return false;
         } catch (Exception e) {
-            logger.severe("Unexpected error sending SMS: " + e.getMessage());
-            e.printStackTrace();
+            logger.severe("Unexpected error in sendSMS: " + e.getMessage());
             return false;
         }
     }
     
-               public String formatOTPMessage(String otpCode) {
-               return String.format("Your BloodBank verification code is: %s. This code will expire in 5 minutes. Do not share this code with anyone.", otpCode);
-           }
+    public String formatOTPMessage(String otpCode) {
+        return String.format("Your BloodBank verification code is: %s. This code will expire in 5 minutes. Do not share this code with anyone.", otpCode);
+    }
     
     /**
      * Check if SMS service is in testing mode

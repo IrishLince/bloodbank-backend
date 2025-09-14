@@ -1,45 +1,66 @@
 package RedSource.services;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.time.Instant;
-import java.util.UUID;
 
 @Service
 public class FileStorageService {
 
-    @Value("${app.upload.dir:uploads}")
-    private String uploadDir;
+    private final CloudinaryService cloudinaryService;
+
+    @Autowired
+    public FileStorageService(CloudinaryService cloudinaryService) {
+        this.cloudinaryService = cloudinaryService;
+    }
 
     public String storeUserPhoto(MultipartFile file) throws IOException {
-        if (file == null || file.isEmpty()) return null;
+        if (file == null || file.isEmpty()) {
+            System.out.println("No file provided for upload");
+            return null;
+        }
+        
+        String originalFilename = file.getOriginalFilename();
+        System.out.println("Processing file upload: " + originalFilename);
+        
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
-            throw new IOException("Invalid file type. Only images are allowed.");
+            String errorMsg = "Invalid file type. Only images are allowed. Content type: " + contentType;
+            System.out.println(errorMsg);
+            throw new IOException(errorMsg);
         }
-        if (file.getSize() > 5 * 1024 * 1024) { // 5MB
-            throw new IOException("File too large. Max 5MB");
+        
+        long fileSize = file.getSize();
+        System.out.println("File size: " + fileSize + " bytes");
+        
+        if (fileSize > 5 * 1024 * 1024) { // 5MB
+            String errorMsg = "File too large. Size: " + fileSize + " bytes, Max: 5MB";
+            System.out.println(errorMsg);
+            throw new IOException(errorMsg);
         }
 
-        Path uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
-        Files.createDirectories(uploadPath);
+        try {
+            System.out.println("Uploading file to Cloudinary...");
+            String cloudinaryUrl = cloudinaryService.uploadFile(file, "user-photos");
+            System.out.println("Successfully uploaded file to Cloudinary. URL: " + cloudinaryUrl);
+            return cloudinaryUrl;
+        } catch (IOException e) {
+            String errorMsg = "Failed to upload file to cloud storage: " + e.getMessage();
+            System.out.println(errorMsg);
+            e.printStackTrace();
+            throw new IOException(errorMsg, e);
+        }
+    }
 
-        String ext = StringUtils.getFilenameExtension(file.getOriginalFilename());
-        String safeExt = (ext != null && ext.length() <= 5) ? ext.toLowerCase() : "img";
-        String filename = UUID.randomUUID() + "-" + Instant.now().toEpochMilli() + "." + safeExt;
-        Path target = uploadPath.resolve(filename);
-
-        Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
-
-        // Return a public URL path served by WebConfig
-        return "/uploads/" + filename;
+    public void deleteFile(String fileUrl) throws IOException {
+        if (fileUrl != null && !fileUrl.isEmpty() && fileUrl.startsWith("http")) {
+            try {
+                cloudinaryService.deleteFile(fileUrl);
+            } catch (IOException e) {
+                throw new IOException("Failed to delete file from cloud storage", e);
+            }
+        }
     }
 }
