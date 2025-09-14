@@ -171,4 +171,20 @@ public class TokenService {
         tokenRepository.deleteAll();
         logger.info("All tokens deleted successfully");
     }
+    
+    public void cleanupOldTokensWithoutUUID() {
+        logger.info("Cleaning up old tokens without UUID (length < 200 characters)");
+        List<Token> allTokens = tokenRepository.findAll();
+        int deletedCount = 0;
+        
+        for (Token token : allTokens) {
+            if (token.getToken().length() < 200) { // Old tokens without UUID are shorter
+                tokenRepository.delete(token);
+                deletedCount++;
+                logger.debug("Deleted old token without UUID: {}", token.getId());
+            }
+        }
+        
+        logger.info("Successfully cleaned up {} old tokens without UUID", deletedCount);
+    }
 }
