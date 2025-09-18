@@ -1,6 +1,7 @@
 package RedSource.controllers;
 
 import RedSource.entities.User;
+import RedSource.entities.Hospital;
 import RedSource.entities.DTO.auth.JwtResponse;
 import RedSource.entities.DTO.auth.LoginRequest;
 import RedSource.entities.DTO.auth.MessageResponse;
@@ -12,6 +13,7 @@ import RedSource.entities.DTO.auth.TokenRefreshRequest;
 import RedSource.entities.DTO.auth.TokenRefreshResponse;
 import RedSource.entities.enums.UserRoleType;
 import RedSource.repositories.UserRepository;
+import RedSource.repositories.HospitalRepository;
 import RedSource.security.JwtUtils;
 import RedSource.services.TokenService;
 import RedSource.services.OTPService;
@@ -56,6 +58,9 @@ public class AuthController {
 
     @Autowired
     UserRepository userRepository;
+
+    @Autowired
+    HospitalRepository hospitalRepository;
 
     @Autowired
     PasswordEncoder encoder;
@@ -165,26 +170,53 @@ public class AuthController {
                         .body(new MessageResponse("Authentication required"));
             }
             
-            // Get the current user from the database
-            User user = userRepository.findByEmail(userDetails.getUsername())
-                    .orElseThrow(() -> new RuntimeException("User not found with email: " + userDetails.getUsername()));
+            // First try to find as a regular user
+            Optional<User> userOpt = userRepository.findByEmail(userDetails.getUsername());
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                
+                // If user is a hospital, try to find hospital data
+                if (user.getRole() == UserRoleType.HOSPITAL) {
+                    Optional<Hospital> hospitalOpt = hospitalRepository.findByEmail(user.getEmail());
+                    if (hospitalOpt.isPresent()) {
+                        Hospital hospital = hospitalOpt.get();
+                        
+                        // Return hospital data
+                        Map<String, Object> response = new HashMap<>();
+                        response.put("id", hospital.getId());
+                        response.put("hospitalName", hospital.getHospitalName());
+                        response.put("email", hospital.getEmail());
+                        response.put("username", hospital.getUsername());
+                        response.put("phone", hospital.getPhone());
+                        response.put("address", hospital.getAddress());
+                        response.put("hospitalId", hospital.getHospitalId());
+                        response.put("licenseNumber", hospital.getLicenseNumber());
+                        response.put("profilePhotoUrl", hospital.getProfilePhotoUrl());
+                        response.put("role", "HOSPITAL");
+                        
+                        return ResponseEntity.ok(response);
+                    }
+                }
+                
+                // Return regular user data
+                Map<String, Object> response = new HashMap<>();
+                response.put("id", user.getId());
+                response.put("name", user.getName());
+                response.put("email", user.getEmail());
+                response.put("username", user.getUsername());
+                response.put("role", user.getRole().name());
+                response.put("contactInformation", user.getContactInformation());
+                response.put("bloodType", user.getBloodType());
+                response.put("address", user.getAddress());
+                response.put("age", user.getAge());
+                response.put("sex", user.getSex());
+                response.put("dateOfBirth", user.getDateOfBirth());
+                response.put("profilePhotoUrl", user.getProfilePhotoUrl());
+                
+                return ResponseEntity.ok(response);
+            }
             
-            // Create a response with the user's details
-            Map<String, Object> response = new HashMap<>();
-            response.put("id", user.getId());
-            response.put("name", user.getName());
-            response.put("email", user.getEmail());
-            response.put("username", user.getUsername());
-            response.put("role", user.getRole().name());
-            response.put("contactInformation", user.getContactInformation());
-            response.put("bloodType", user.getBloodType());
-            response.put("address", user.getAddress());
-            response.put("age", user.getAge());
-            response.put("sex", user.getSex());
-            response.put("dateOfBirth", user.getDateOfBirth());
-            response.put("profilePhotoUrl", user.getProfilePhotoUrl());
-            
-            return ResponseEntity.ok(response);
+            throw new RuntimeException("User not found with email: " + userDetails.getUsername());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error fetching user profile: " + e.getMessage()));
