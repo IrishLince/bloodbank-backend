@@ -31,4 +31,4 @@ ENV SPRING_DATA_MONGODB_MAX_WAIT_TIME=10000
 ENV SPRING_DATA_MONGODB_SERVER_SELECTION_TIMEOUT=10000
 
 # Run the application
-CMD ["java", "-Dspring.profiles.active=production", "-jar", "target/app-0.0.1-SNAPSHOT.jar"]
+CMD ["java", "-jar", "target/app-0.0.1-SNAPSHOT.jar"]

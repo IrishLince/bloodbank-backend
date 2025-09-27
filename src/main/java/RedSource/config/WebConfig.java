@@ -28,13 +28,12 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(@NonNull CorsRegistry registry) {
-        String[] origins = allowedOrigins.split(",");
         registry.addMapping("/**")
-                .allowedOrigins(origins)
+                .allowedOrigins("*") // Allow all origins
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD")
                 .allowedHeaders("*")
                 .exposedHeaders("*")
-                .allowCredentials(true)
+                .allowCredentials(false) // Must be false when using allowedOrigins("*")
                 .maxAge(3600);
     }
 }
