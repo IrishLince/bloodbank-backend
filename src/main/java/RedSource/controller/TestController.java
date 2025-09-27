@@ -13,7 +13,7 @@ public class TestController {
     public ResponseEntity<?> ping() {
         return ResponseEntity.ok(Map.of(
             "status", "UP",
-            "message", "API is up and running",
+            "message", "API is up and running - v2",
             "timestamp", System.currentTimeMillis()
         ));
     }
