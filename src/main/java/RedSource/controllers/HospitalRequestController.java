@@ -13,11 +13,16 @@ import java.util.Map;
 import java.util.List;
 import java.util.HashMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @PreAuthorize("hasRole('HOSPITAL') or hasRole('ADMIN')")
 @RestController
 @RequestMapping("/api/hospital-requests")
 @RequiredArgsConstructor
 public class HospitalRequestController {
+
+    private static final Logger log = LoggerFactory.getLogger(HospitalRequestController.class);
 
     private final HospitalRequestService hospitalRequestService;
 
@@ -88,6 +93,19 @@ public class HospitalRequestController {
             
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(errorResponse);
+        }
+    }
+
+    @GetMapping("/hospital/{hospitalId}")
+    public ResponseEntity<List<HospitalRequest>> getByHospitalId(@PathVariable String hospitalId) {
+        try {
+            log.info("Received request for hospitalId: {}", hospitalId);
+            List<HospitalRequest> requests = hospitalRequestService.findByHospitalId(hospitalId);
+            log.info("Found {} requests for hospitalId: {}", requests.size(), hospitalId);
+            return ResponseEntity.ok(requests);
+        } catch (ServiceException e) {
+            log.error("Error fetching requests for hospitalId: {}", hospitalId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 }
