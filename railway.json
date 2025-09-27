@@ -4,7 +4,6 @@
     "builder": "DOCKERFILE"
   },
   "deploy": {
-    "startCommand": "java -Dspring.profiles.active=production -jar target/app-0.0.1-SNAPSHOT.jar",
     "healthcheckPath": "/api/test/ping",
     "healthcheckTimeout": 300,
     "healthcheckInterval": 15,
