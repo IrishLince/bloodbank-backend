@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.List;
 
 @Document(collection = "hospital_requests")
 @Data
@@ -33,11 +34,21 @@ public class HospitalRequest implements Serializable {
     @Field("blood_bank_id")
     private String bloodBankId;
 
-    @Field("blood_type")
-    private String bloodType;
+    @Field("blood_bank_name")
+    private String bloodBankName;
 
-    @Field("quantity")
-    private Integer quantity;
+    @Field("blood_bank_address")
+    private String bloodBankAddress;
+
+    @Field("blood_bank_phone")
+    private String bloodBankPhone;
+
+    @Field("blood_bank_email")
+    private String bloodBankEmail;
+
+    @Field("blood_items")
+    @com.fasterxml.jackson.annotation.JsonProperty("bloodItems")
+    private List<BloodInventoryItem> bloodItems;
 
     @Field("status")
     private String status;
@@ -45,6 +56,10 @@ public class HospitalRequest implements Serializable {
     @Field("request_date")
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
     private Date requestDate;
+
+    @Field("date_needed")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
+    private Date dateNeeded;
 
     @Field("hospital_name")
     private String hospitalName;
@@ -54,6 +69,9 @@ public class HospitalRequest implements Serializable {
 
     @Field("contact_information")
     private String contactInformation;
+
+    @Field("notes")
+    private String notes;
 
     @Field("created_at")
     private Date createdAt;
@@ -86,20 +104,44 @@ public class HospitalRequest implements Serializable {
         this.bloodBankId = bloodBankId;
     }
 
-    public String getBloodType() {
-        return bloodType;
+    public String getBloodBankName() {
+        return bloodBankName;
     }
 
-    public void setBloodType(String bloodType) {
-        this.bloodType = bloodType;
+    public void setBloodBankName(String bloodBankName) {
+        this.bloodBankName = bloodBankName;
     }
 
-    public Integer getQuantity() {
-        return quantity;
+    public String getBloodBankAddress() {
+        return bloodBankAddress;
     }
 
-    public void setQuantity(Integer quantity) {
-        this.quantity = quantity;
+    public void setBloodBankAddress(String bloodBankAddress) {
+        this.bloodBankAddress = bloodBankAddress;
+    }
+
+    public String getBloodBankPhone() {
+        return bloodBankPhone;
+    }
+
+    public void setBloodBankPhone(String bloodBankPhone) {
+        this.bloodBankPhone = bloodBankPhone;
+    }
+
+    public String getBloodBankEmail() {
+        return bloodBankEmail;
+    }
+
+    public void setBloodBankEmail(String bloodBankEmail) {
+        this.bloodBankEmail = bloodBankEmail;
+    }
+
+    public List<BloodInventoryItem> getBloodItems() {
+        return bloodItems;
+    }
+
+    public void setBloodItems(List<BloodInventoryItem> bloodItems) {
+        this.bloodItems = bloodItems;
     }
 
     public String getStatus() {
@@ -116,6 +158,14 @@ public class HospitalRequest implements Serializable {
 
     public void setRequestDate(Date requestDate) {
         this.requestDate = requestDate;
+    }
+
+    public Date getDateNeeded() {
+        return dateNeeded;
+    }
+
+    public void setDateNeeded(Date dateNeeded) {
+        this.dateNeeded = dateNeeded;
     }
 
     public String getHospitalName() {
@@ -140,6 +190,14 @@ public class HospitalRequest implements Serializable {
 
     public void setContactInformation(String contactInformation) {
         this.contactInformation = contactInformation;
+    }
+
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
     }
 
     public Date getCreatedAt() {

@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface BloodBankRepository extends MongoRepository<BloodBank, String> {
+    BloodBank findByName(String name);
 } 

@@ -15,4 +15,6 @@ public interface HospitalRequestRepository extends MongoRepository<HospitalReque
     Optional<HospitalRequest> findById(String id);
 
     List<HospitalRequest> findAllByStatus(String status);
+
+    List<HospitalRequest> findByHospitalId(String hospitalId);
 }

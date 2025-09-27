@@ -12,7 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
-@PreAuthorize("hasRole('BLOODBANK') or hasRole('ADMIN')")
+@PreAuthorize("hasRole('BLOODBANK') or hasRole('ADMIN') or hasRole('HOSPITAL')")
 @RestController
 @RequestMapping("/api/bloodbanks")
 @RequiredArgsConstructor
