@@ -64,6 +64,10 @@ public class WebSecurityConfig {
                     .requestMatchers("/actuator/health").permitAll()
                     .requestMatchers("/health").permitAll()
                     .requestMatchers("/api/test/**").permitAll()
+                    .requestMatchers("/api/hospitals/donation-centers").permitAll()
+                    .requestMatchers("/api/hospitals/nearby").permitAll()
+                    .requestMatchers("/api/hospitals/search").permitAll()
+                    .requestMatchers("/api/hospitals/urgent").permitAll()
                     .anyRequest().authenticated()
             );
         

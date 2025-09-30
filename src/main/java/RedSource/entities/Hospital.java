@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.List;
 
 @Document(collection = "users_hospital")
 @Data
@@ -60,6 +61,31 @@ public class Hospital implements Serializable {
 
     @Field("updated_at")
     private Date updatedAt;
+
+    // Additional fields for donation center functionality
+    @Field("coordinates")
+    private Coordinates coordinates;
+
+    @Field("operating_hours")
+    private String operatingHours;
+
+    @Field("blood_types_available")
+    private List<String> bloodTypesAvailable;
+
+    @Field("is_donation_center")
+    private Boolean isDonationCenter;
+
+    @Field("urgent_need")
+    private Boolean urgentNeed;
+
+    // Nested class for coordinates
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Coordinates {
+        private Double lat;
+        private Double lng;
+    }
 
     // Explicit getters and setters
     public String getId() {
@@ -156,5 +182,45 @@ public class Hospital implements Serializable {
 
     public void setUpdatedAt(Date updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Coordinates getCoordinates() {
+        return coordinates;
+    }
+
+    public void setCoordinates(Coordinates coordinates) {
+        this.coordinates = coordinates;
+    }
+
+    public String getOperatingHours() {
+        return operatingHours;
+    }
+
+    public void setOperatingHours(String operatingHours) {
+        this.operatingHours = operatingHours;
+    }
+
+    public List<String> getBloodTypesAvailable() {
+        return bloodTypesAvailable;
+    }
+
+    public void setBloodTypesAvailable(List<String> bloodTypesAvailable) {
+        this.bloodTypesAvailable = bloodTypesAvailable;
+    }
+
+    public Boolean getIsDonationCenter() {
+        return isDonationCenter;
+    }
+
+    public void setIsDonationCenter(Boolean isDonationCenter) {
+        this.isDonationCenter = isDonationCenter;
+    }
+
+    public Boolean getUrgentNeed() {
+        return urgentNeed;
+    }
+
+    public void setUrgentNeed(Boolean urgentNeed) {
+        this.urgentNeed = urgentNeed;
     }
 }
