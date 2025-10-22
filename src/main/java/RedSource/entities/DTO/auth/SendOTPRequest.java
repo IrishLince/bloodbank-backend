@@ -12,6 +12,6 @@ public class SendOTPRequest {
     private String email;
     
     @NotBlank(message = "Phone number is required")
-    @Pattern(regexp = "^\\d{10}$", message = "Phone number must be 10 digits")
+    @Pattern(regexp = "^(63\\d{10}|\\d{10})$", message = "Phone number must be 10 digits or 12 digits with 63 prefix")
     private String phoneNumber;
 } 
