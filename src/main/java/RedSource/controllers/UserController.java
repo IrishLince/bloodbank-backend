@@ -426,4 +426,76 @@ public class UserController {
             );
         }
     }
+
+    // Archive user account
+    @PutMapping("/{id}/archive")
+    public ResponseEntity<?> archiveAccount(@PathVariable String id) {
+        try {
+            User user = userService.getUserById(id);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.NOT_FOUND,
+                                "User not found"
+                        )
+                );
+            }
+
+            // Set account status to archived
+            user.setAccountStatus("ARCHIVED");
+            user.setUpdatedAt(new Date());
+            User updatedUser = userRepository.save(user);
+
+            return ResponseEntity.ok(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.OK,
+                            "Account archived successfully",
+                            new UserDTO(updatedUser)
+                    )
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Failed to archive account: " + e.getMessage()
+                    )
+            );
+        }
+    }
+
+    // Activate user account
+    @PutMapping("/{id}/activate")
+    public ResponseEntity<?> activateAccount(@PathVariable String id) {
+        try {
+            User user = userService.getUserById(id);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.NOT_FOUND,
+                                "User not found"
+                        )
+                );
+            }
+
+            // Set account status to active
+            user.setAccountStatus("ACTIVE");
+            user.setUpdatedAt(new Date());
+            User updatedUser = userRepository.save(user);
+
+            return ResponseEntity.ok(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.OK,
+                            "Account activated successfully",
+                            new UserDTO(updatedUser)
+                    )
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Failed to activate account: " + e.getMessage()
+                    )
+            );
+        }
+    }
 }

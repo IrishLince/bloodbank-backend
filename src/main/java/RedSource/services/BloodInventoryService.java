@@ -32,6 +32,18 @@ public class BloodInventoryService {
         }
     }
 
+    public List<BloodInventory> getByBloodBankId(String bloodBankId) {
+        try {
+            List<BloodInventory> bloodInventories = bloodInventoryRepository.findByBloodBankId(bloodBankId);
+            log.info(MessageUtils.retrieveSuccess("Blood Inventories for Blood Bank: " + bloodBankId));
+            return bloodInventories;
+        } catch (Exception e) {
+            String errorMessage = MessageUtils.retrieveError("Blood Inventories");
+            log.error(errorMessage, e);
+            throw new ServiceException(errorMessage, e);
+        }
+    }
+
     public BloodInventory getById(String id) {
         try {
             if (Objects.isNull(id)) {
@@ -65,6 +77,19 @@ public class BloodInventoryService {
             if (existingBloodInventory == null) {
                 throw new ServiceException("Blood Inventory not found");
             }
+            
+            // Auto-update status based on quantity changes
+            int oldQuantity = existingBloodInventory.getQuantity() != null ? existingBloodInventory.getQuantity() : 0;
+            int newQuantity = bloodInventory.getQuantity() != null ? bloodInventory.getQuantity() : 0;
+            
+            if (oldQuantity == 0 && newQuantity > 0) {
+                bloodInventory.setStatus("Available");
+                log.info("Inventory status automatically updated to Available (quantity changed from 0 to " + newQuantity + ")");
+            } else if (oldQuantity > 0 && newQuantity == 0) {
+                bloodInventory.setStatus("Unavailable");
+                log.info("Inventory status automatically updated to Unavailable (quantity changed from " + oldQuantity + " to 0)");
+            }
+            
             bloodInventory.setId(id);
             bloodInventory.setCreatedAt(existingBloodInventory.getCreatedAt());
             bloodInventory.setUpdatedAt(new Date());
@@ -75,6 +100,88 @@ public class BloodInventoryService {
             String errorMessage = MessageUtils.updateError("Blood Inventory");
             log.error(errorMessage, e);
             throw new ServiceException(errorMessage, e);
+        }
+    }
+
+    /**
+     * Get available units for a specific blood type at a blood bank
+     */
+    public int getAvailableUnits(String bloodBankId, String bloodTypeId) {
+        try {
+            List<BloodInventory> inventories = bloodInventoryRepository.findByBloodBankId(bloodBankId);
+            
+            // Sum up all available units for this blood type (only count "Available" status)
+            int totalAvailableUnits = inventories.stream()
+                    .filter(inv -> bloodTypeId.equals(inv.getBloodTypeId()))
+                    .filter(inv -> "Available".equals(inv.getStatus())) // Only count available inventory
+                    .mapToInt(inv -> inv.getQuantity() != null ? inv.getQuantity() : 0)
+                    .sum();
+            
+            return totalAvailableUnits;
+        } catch (Exception e) {
+            log.error("Error getting available units: " + e.getMessage(), e);
+            return 0;
+        }
+    }
+
+    /**
+     * Decrease blood inventory units for a specific blood type and blood bank
+     * Note: bloodTypeId should match the blood type string (e.g., "A+", "O-")
+     */
+    public void decreaseInventory(String bloodBankId, String bloodTypeId, int units) {
+        try {
+            List<BloodInventory> inventories = bloodInventoryRepository.findByBloodBankId(bloodBankId);
+            
+            // Find all available inventory items for this blood type, sorted by quantity (descending)
+            List<BloodInventory> availableInventories = inventories.stream()
+                    .filter(inv -> bloodTypeId.equals(inv.getBloodTypeId()))
+                    .filter(inv -> "Available".equals(inv.getStatus()))
+                    .filter(inv -> inv.getQuantity() != null && inv.getQuantity() > 0)
+                    .sorted((a, b) -> Integer.compare(b.getQuantity(), a.getQuantity())) // Sort by quantity descending
+                    .toList();
+            
+            if (availableInventories.isEmpty()) {
+                log.warn("No available inventory found for blood type " + bloodTypeId + " at blood bank " + bloodBankId);
+                return;
+            }
+            
+            // Calculate total available units
+            int totalAvailable = availableInventories.stream()
+                    .mapToInt(inv -> inv.getQuantity() != null ? inv.getQuantity() : 0)
+                    .sum();
+            
+            if (totalAvailable < units) {
+                log.warn("Insufficient units for blood type " + bloodTypeId + ". Available: " + totalAvailable + ", Requested: " + units);
+                // Still allow the operation but log the warning
+            }
+            
+            // Decrease units from available inventories (starting with the largest quantities)
+            int remainingUnits = units;
+            for (BloodInventory inventory : availableInventories) {
+                if (remainingUnits <= 0) break;
+                
+                int currentQuantity = inventory.getQuantity() != null ? inventory.getQuantity() : 0;
+                int unitsToDecrease = Math.min(remainingUnits, currentQuantity);
+                
+                int newQuantity = currentQuantity - unitsToDecrease;
+                inventory.setQuantity(newQuantity);
+                
+                // Mark as Unavailable if quantity reaches 0
+                if (newQuantity == 0) {
+                    inventory.setStatus("Unavailable");
+                    log.info("Inventory for " + bloodTypeId + " marked as Unavailable (0 units)");
+                }
+                
+                inventory.setUpdatedAt(new Date());
+                bloodInventoryRepository.save(inventory);
+                
+                remainingUnits -= unitsToDecrease;
+                log.info("Decreased inventory for " + bloodTypeId + " by " + unitsToDecrease + " units (remaining: " + remainingUnits + ")");
+            }
+            
+        } catch (Exception e) {
+            log.error("Error decreasing blood inventory: " + e.getMessage(), e);
+            // Don't throw exception - we don't want to fail the voucher completion if inventory update fails
         }
     }
 

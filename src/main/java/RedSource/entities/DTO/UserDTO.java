@@ -2,6 +2,7 @@ package RedSource.entities.DTO;
 
 import RedSource.entities.User;
 import RedSource.entities.enums.UserRoleType;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -34,6 +35,14 @@ public class UserDTO implements Serializable {
     private Date dateOfBirth;
     private Date createdAt;
     private Date updatedAt;
+    
+    // Reward Points System Fields
+    private Integer rewardPoints;
+    private Integer totalDonations;
+    private String donorTier;
+    
+    @JsonProperty("accountStatus")
+    private String accountStatus;
 
     /**
      * Constructs a UserDTO from a User entity.
@@ -55,6 +64,13 @@ public class UserDTO implements Serializable {
         this.dateOfBirth = user.getDateOfBirth();
         this.createdAt = user.getCreatedAt();
         this.updatedAt = user.getUpdatedAt();
+        this.rewardPoints = user.getRewardPoints();
+        this.totalDonations = user.getTotalDonations();
+        this.accountStatus = user.getAccountStatus();
+        this.donorTier = user.getDonorTier();
+        
+        // Debug log
+        System.out.println("UserDTO created - Account Status: " + this.accountStatus);
     }
 
     public User toEntity() {
@@ -73,6 +89,9 @@ public class UserDTO implements Serializable {
                 .dateOfBirth(this.dateOfBirth)
                 .createdAt(this.createdAt)
                 .updatedAt(this.updatedAt)
+                .rewardPoints(this.rewardPoints)
+                .totalDonations(this.totalDonations)
+                .donorTier(this.donorTier)
                 .build();
     }
 }

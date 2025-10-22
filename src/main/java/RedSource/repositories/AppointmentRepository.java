@@ -2,6 +2,7 @@ package RedSource.repositories;
 
 import RedSource.entities.Appointment;
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -17,4 +18,7 @@ public interface AppointmentRepository extends MongoRepository<Appointment, Stri
     List<Appointment> findAllByStatus(String status);
 
     List<Appointment> findByUserId(String userId);
+    
+    @Query("{ 'blood_bank_id': ?0 }")
+    List<Appointment> findByBloodBankId(String bloodBankId);
 }

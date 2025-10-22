@@ -1,6 +1,7 @@
 package RedSource.repositories;
 
 import RedSource.entities.User;
+import RedSource.entities.enums.UserRoleType;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
@@ -22,4 +23,6 @@ public interface UserRepository extends MongoRepository<User, String> {
     Boolean existsByContactInformation(String contactInformation);
     
     Optional<User> findByContactInformation(String contactInformation);
+    
+    long countByRole(UserRoleType role);
 }

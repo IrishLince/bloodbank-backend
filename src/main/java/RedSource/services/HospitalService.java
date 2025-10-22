@@ -31,6 +31,11 @@ public class HospitalService {
         return hospital.map(HospitalDTO::new).orElse(null);
     }
 
+    public Hospital getEntityById(String id) {
+        Optional<Hospital> hospital = hospitalRepository.findById(id);
+        return hospital.orElse(null);
+    }
+
     public HospitalDTO getByEmail(String email) {
         Optional<Hospital> hospital = hospitalRepository.findByEmail(email);
         return hospital.map(HospitalDTO::new).orElse(null);
@@ -43,19 +48,19 @@ public class HospitalService {
 
     public HospitalDTO save(HospitalDTO hospitalDTO) {
         Hospital hospital = hospitalDTO.toEntity();
-        
+
         // Set timestamps
         Date now = new Date();
         if (hospital.getId() == null) {
             hospital.setCreatedAt(now);
         }
         hospital.setUpdatedAt(now);
-        
+
         // Encode password if provided
         if (hospital.getPassword() != null && !hospital.getPassword().isEmpty()) {
             hospital.setPassword(passwordEncoder.encode(hospital.getPassword()));
         }
-        
+
         Hospital savedHospital = hospitalRepository.save(hospital);
         return new HospitalDTO(savedHospital);
     }
@@ -68,12 +73,12 @@ public class HospitalService {
 
         Hospital existingHospital = existingHospitalOpt.get();
         Hospital updatedHospital = hospitalDTO.toEntity();
-        
+
         // Preserve certain fields
         updatedHospital.setId(id);
         updatedHospital.setCreatedAt(existingHospital.getCreatedAt());
         updatedHospital.setUpdatedAt(new Date());
-        
+
         // Keep existing password if not provided in update
         if (updatedHospital.getPassword() == null || updatedHospital.getPassword().isEmpty()) {
             updatedHospital.setPassword(existingHospital.getPassword());
@@ -113,7 +118,7 @@ public class HospitalService {
         Hospital hospital = hospitalOpt.get();
         hospital.setPassword(passwordEncoder.encode(newPassword));
         hospital.setUpdatedAt(new Date());
-        
+
         Hospital savedHospital = hospitalRepository.save(hospital);
         return new HospitalDTO(savedHospital);
     }
@@ -127,7 +132,7 @@ public class HospitalService {
         Hospital hospital = hospitalOpt.get();
         hospital.setProfilePhotoUrl(photoUrl);
         hospital.setUpdatedAt(new Date());
-        
+
         Hospital savedHospital = hospitalRepository.save(hospital);
         return new HospitalDTO(savedHospital);
     }

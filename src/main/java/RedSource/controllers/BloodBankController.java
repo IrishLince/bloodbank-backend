@@ -1,6 +1,6 @@
 package RedSource.controllers;
 
-import RedSource.entities.BloodBank;
+import RedSource.entities.BloodBankUser;
 import RedSource.entities.utils.MessageUtils;
 import RedSource.entities.utils.ResponseUtils;
 import RedSource.services.BloodBankService;
@@ -30,101 +30,96 @@ public class BloodBankController {
                 ResponseUtils.buildSuccessResponse(
                         HttpStatus.OK,
                         MessageUtils.retrieveSuccess(BLOOD_BANKS),
-                        bloodBankService.getAll()
-                )
-        );
+                        bloodBankService.getAll()));
     }
 
     // Get blood bank by ID
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(@PathVariable String id) {
-        BloodBank bloodBank = bloodBankService.getById(id);
-        if (bloodBank == null) {
+        BloodBankUser bloodBank = bloodBankService.getById(id);
+        if (bloodBank != null) {
+            return ResponseEntity.ok(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.OK,
+                            MessageUtils.retrieveSuccess(BLOOD_BANK),
+                            bloodBank));
+        } else {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.NOT_FOUND,
-                            "Blood bank not found"
-                    )
-            );
+                            MessageUtils.retrieveError(BLOOD_BANK)));
         }
-        return ResponseEntity.ok(
-                ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
-                        MessageUtils.retrieveSuccess(BLOOD_BANK),
-                        bloodBank
-                )
-        );
     }
 
-    // Save a new blood bank
+    // Create new blood bank
     @PostMapping
-    public ResponseEntity<?> save(@Valid @RequestBody BloodBank bloodBank, BindingResult bindingResult) {
-        if (bindingResult.hasErrors()) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> create(@Valid @RequestBody BloodBankUser bloodBank, BindingResult result) {
+        if (result.hasErrors()) {
             return ResponseEntity.badRequest().body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.BAD_REQUEST,
-                            MessageUtils.validationErrors(bindingResult)
-                    )
-            );
+                            "Validation errors: " + result.getAllErrors()));
         }
-        BloodBank savedBloodBank = bloodBankService.save(bloodBank);
-        return ResponseEntity.ok(
-                ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
-                        MessageUtils.saveSuccess(BLOOD_BANK),
-                        savedBloodBank
-                )
-        );
+
+        try {
+            BloodBankUser savedBloodBank = bloodBankService.save(bloodBank);
+            return ResponseEntity.status(HttpStatus.CREATED).body(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.CREATED,
+                            MessageUtils.saveSuccess(BLOOD_BANK),
+                            savedBloodBank));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Error creating blood bank: " + e.getMessage()));
+        }
     }
 
-    // Update an existing blood bank
+    // Update blood bank
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable String id, @Valid @RequestBody BloodBank bloodBank, BindingResult bindingResult) {
-        if (bindingResult.hasErrors()) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> update(@PathVariable String id, @Valid @RequestBody BloodBankUser bloodBank,
+            BindingResult result) {
+        if (result.hasErrors()) {
             return ResponseEntity.badRequest().body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.BAD_REQUEST,
-                            MessageUtils.validationErrors(bindingResult)
-                    )
-            );
+                            "Validation errors: " + result.getAllErrors()));
         }
+
         try {
-            BloodBank updatedBloodBank = bloodBankService.update(id, bloodBank);
+            BloodBankUser updatedBloodBank = bloodBankService.update(id, bloodBank);
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
                             MessageUtils.updateSuccess(BLOOD_BANK),
-                            updatedBloodBank
-                    )
-            );
+                            updatedBloodBank));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
-                            HttpStatus.NOT_FOUND,
-                            e.getMessage()
-                    )
-            );
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Error updating blood bank: " + e.getMessage()));
         }
     }
 
-    // Delete a blood bank
+    // Delete blood bank
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> delete(@PathVariable String id) {
         try {
             bloodBankService.delete(id);
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
-                            MessageUtils.deleteSuccess(BLOOD_BANK)
-                    )
-            );
+                            MessageUtils.deleteSuccess(BLOOD_BANK),
+                            null));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
-                            HttpStatus.NOT_FOUND,
-                            e.getMessage()
-                    )
-            );
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Error deleting blood bank: " + e.getMessage()));
         }
     }
 }

@@ -1,9 +1,9 @@
 package RedSource.services;
 
-import RedSource.entities.BloodBank;
+import RedSource.entities.BloodBankUser;
 import RedSource.entities.utils.MessageUtils;
 import RedSource.exceptions.ServiceException;
-import RedSource.repositories.BloodBankRepository;
+import RedSource.repositories.BloodBankUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,11 +18,11 @@ import java.util.Objects;
 public class BloodBankService {
 
     private static final Logger log = LoggerFactory.getLogger(BloodBankService.class);
-    private final BloodBankRepository bloodBankRepository;
+    private final BloodBankUserRepository bloodBankRepository;
 
-    public List<BloodBank> getAll() {
+    public List<BloodBankUser> getAll() {
         try {
-            List<BloodBank> bloodBanks = bloodBankRepository.findAll();
+            List<BloodBankUser> bloodBanks = bloodBankRepository.findAll();
             log.info(MessageUtils.retrieveSuccess("Blood Banks"));
             return bloodBanks;
         } catch (Exception e) {
@@ -32,7 +32,7 @@ public class BloodBankService {
         }
     }
 
-    public BloodBank getById(String id) {
+    public BloodBankUser getById(String id) {
         try {
             if (Objects.isNull(id)) {
                 return null;
@@ -45,11 +45,11 @@ public class BloodBankService {
         }
     }
 
-    public BloodBank save(BloodBank bloodBank) {
+    public BloodBankUser save(BloodBankUser bloodBank) {
         try {
             bloodBank.setCreatedAt(new Date());
             bloodBank.setUpdatedAt(new Date());
-            BloodBank savedBloodBank = bloodBankRepository.save(bloodBank);
+            BloodBankUser savedBloodBank = bloodBankRepository.save(bloodBank);
             log.info(MessageUtils.saveSuccess("Blood Bank"));
             return savedBloodBank;
         } catch (Exception e) {
@@ -59,18 +59,21 @@ public class BloodBankService {
         }
     }
 
-    public BloodBank update(String id, BloodBank bloodBank) {
+    public BloodBankUser update(String id, BloodBankUser bloodBank) {
         try {
-            BloodBank existingBloodBank = getById(id);
+            BloodBankUser existingBloodBank = getById(id);
             if (existingBloodBank == null) {
-                throw new ServiceException("Blood Bank not found");
+                throw new ServiceException("Blood Bank not found", new RuntimeException("Blood Bank not found"));
             }
+
             bloodBank.setId(id);
             bloodBank.setCreatedAt(existingBloodBank.getCreatedAt());
             bloodBank.setUpdatedAt(new Date());
-            BloodBank updatedBloodBank = bloodBankRepository.save(bloodBank);
+            BloodBankUser updatedBloodBank = bloodBankRepository.save(bloodBank);
             log.info(MessageUtils.updateSuccess("Blood Bank"));
             return updatedBloodBank;
+        } catch (ServiceException e) {
+            throw e;
         } catch (Exception e) {
             String errorMessage = MessageUtils.updateError("Blood Bank");
             log.error(errorMessage, e);
@@ -80,10 +83,6 @@ public class BloodBankService {
 
     public void delete(String id) {
         try {
-            BloodBank bloodBank = getById(id);
-            if (bloodBank == null) {
-                throw new ServiceException("Blood Bank not found");
-            }
             bloodBankRepository.deleteById(id);
             log.info(MessageUtils.deleteSuccess("Blood Bank"));
         } catch (Exception e) {
@@ -92,4 +91,4 @@ public class BloodBankService {
             throw new ServiceException(errorMessage, e);
         }
     }
-} 
+}

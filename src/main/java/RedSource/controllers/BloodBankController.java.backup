@@ -1,74 +1,64 @@
 package RedSource.controllers;
 
-import RedSource.entities.BloodInventory;
+import RedSource.entities.BloodBank;
 import RedSource.entities.utils.MessageUtils;
 import RedSource.entities.utils.ResponseUtils;
-import RedSource.services.BloodInventoryService;
+import RedSource.services.BloodBankService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
+@PreAuthorize("hasRole('BLOODBANK') or hasRole('ADMIN') or hasRole('HOSPITAL')")
 @RestController
-@RequestMapping("/api/blood-inventory")
+@RequestMapping("/api/bloodbanks")
 @RequiredArgsConstructor
-public class BloodInventoryController {
+public class BloodBankController {
 
-    public static final String BLOOD_INVENTORY = "Blood Inventory";
-    public static final String BLOOD_INVENTORIES = "Blood Inventories";
+    public static final String BLOOD_BANK = "Blood Bank";
+    public static final String BLOOD_BANKS = "Blood Banks";
 
-    private final BloodInventoryService bloodInventoryService;
+    private final BloodBankService bloodBankService;
 
-    // Get all blood inventories
+    // Get all blood banks
     @GetMapping
     public ResponseEntity<?> getAll() {
         return ResponseEntity.ok(
                 ResponseUtils.buildSuccessResponse(
                         HttpStatus.OK,
-                        MessageUtils.retrieveSuccess(BLOOD_INVENTORIES),
-                        bloodInventoryService.getAll()
+                        MessageUtils.retrieveSuccess(BLOOD_BANKS),
+                        bloodBankService.getAll()
                 )
         );
     }
 
-    // Get blood inventory by blood bank ID
-    @GetMapping("/bloodbank/{bloodBankId}")
-    public ResponseEntity<?> getByBloodBankId(@PathVariable String bloodBankId) {
-        return ResponseEntity.ok(
-                ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
-                        MessageUtils.retrieveSuccess(BLOOD_INVENTORIES),
-                        bloodInventoryService.getByBloodBankId(bloodBankId)
-                )
-        );
-    }
-
-    // Get blood inventory by ID
+    // Get blood bank by ID
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(@PathVariable String id) {
-        BloodInventory bloodInventory = bloodInventoryService.getById(id);
-        if (bloodInventory == null) {
+        BloodBank bloodBank = bloodBankService.getById(id);
+        if (bloodBank == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.NOT_FOUND,
-                            "Blood inventory not found"
+                            "Blood bank not found"
                     )
             );
         }
         return ResponseEntity.ok(
                 ResponseUtils.buildSuccessResponse(
                         HttpStatus.OK,
-                        MessageUtils.retrieveSuccess(BLOOD_INVENTORY),
-                        bloodInventory
+                        MessageUtils.retrieveSuccess(BLOOD_BANK),
+                        bloodBank
                 )
         );
     }
 
-    // Save a new blood inventory
+    // Save a new blood bank
     @PostMapping
-    public ResponseEntity<?> save(@Valid @RequestBody BloodInventory bloodInventory, BindingResult bindingResult) {
+    public ResponseEntity<?> save(@Valid @RequestBody BloodBank bloodBank, BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(
                     ResponseUtils.buildErrorResponse(
@@ -77,19 +67,19 @@ public class BloodInventoryController {
                     )
             );
         }
-        BloodInventory savedBloodInventory = bloodInventoryService.save(bloodInventory);
+        BloodBank savedBloodBank = bloodBankService.save(bloodBank);
         return ResponseEntity.ok(
                 ResponseUtils.buildSuccessResponse(
                         HttpStatus.OK,
-                        MessageUtils.saveSuccess(BLOOD_INVENTORY),
-                        savedBloodInventory
+                        MessageUtils.saveSuccess(BLOOD_BANK),
+                        savedBloodBank
                 )
         );
     }
 
-    // Update an existing blood inventory
+    // Update an existing blood bank
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable String id, @Valid @RequestBody BloodInventory bloodInventory, BindingResult bindingResult) {
+    public ResponseEntity<?> update(@PathVariable String id, @Valid @RequestBody BloodBank bloodBank, BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(
                     ResponseUtils.buildErrorResponse(
@@ -99,12 +89,12 @@ public class BloodInventoryController {
             );
         }
         try {
-            BloodInventory updatedBloodInventory = bloodInventoryService.update(id, bloodInventory);
+            BloodBank updatedBloodBank = bloodBankService.update(id, bloodBank);
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
-                            MessageUtils.updateSuccess(BLOOD_INVENTORY),
-                            updatedBloodInventory
+                            MessageUtils.updateSuccess(BLOOD_BANK),
+                            updatedBloodBank
                     )
             );
         } catch (Exception e) {
@@ -117,15 +107,15 @@ public class BloodInventoryController {
         }
     }
 
-    // Delete a blood inventory
+    // Delete a blood bank
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable String id) {
         try {
-            bloodInventoryService.delete(id);
+            bloodBankService.delete(id);
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
-                            MessageUtils.deleteSuccess(BLOOD_INVENTORY)
+                            MessageUtils.deleteSuccess(BLOOD_BANK)
                     )
             );
         } catch (Exception e) {

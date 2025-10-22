@@ -1,10 +1,12 @@
 package RedSource.services;
 
-import RedSource.entities.BloodBank; // Added this import
+import RedSource.entities.BloodBankUser;
+import RedSource.entities.Hospital;
 import RedSource.entities.HospitalRequest;
 import RedSource.entities.utils.MessageUtils;
 import RedSource.exceptions.ServiceException;
 import RedSource.repositories.HospitalRequestRepository;
+import RedSource.repositories.HospitalRepository;
 import RedSource.services.BloodBankService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -25,10 +27,20 @@ public class HospitalRequestService {
 
     private final HospitalRequestRepository hospitalRequestRepository;
     private final BloodBankService bloodBankService;
+    private final HospitalRepository hospitalRepository;
 
     public List<HospitalRequest> getAll() {
         try {
             List<HospitalRequest> requests = hospitalRequestRepository.findAll();
+            
+            // Ensure bloodItems is not null for each request
+            for (HospitalRequest request : requests) {
+                if (request.getBloodItems() == null || request.getBloodItems().isEmpty()) {
+                    // Initialize with empty list to ensure field is present in JSON response
+                    request.setBloodItems(new java.util.ArrayList<>());
+                }
+            }
+            
             log.info(MessageUtils.retrieveSuccess(HOSPITAL_REQUESTS));
             return requests;
         } catch (Exception e) {
@@ -103,15 +115,70 @@ public class HospitalRequestService {
     public List<HospitalRequest> findByHospitalId(String hospitalId) {
         try {
             List<HospitalRequest> requests = hospitalRequestRepository.findByHospitalId(hospitalId);
-            
-            // Enrich requests with blood bank details
+
+            // Enrich requests with blood bank details and ensure bloodItems is initialized
             for (HospitalRequest request : requests) {
+                // Ensure bloodItems is not null
+                if (request.getBloodItems() == null || request.getBloodItems().isEmpty()) {
+                    request.setBloodItems(new java.util.ArrayList<>());
+                }
+                
                 if (request.getBloodBankId() != null) {
-                    BloodBank bloodBank = bloodBankService.getById(request.getBloodBankId());
+                    BloodBankUser bloodBank = bloodBankService.getById(request.getBloodBankId());
                     if (bloodBank != null) {
-                        request.setBloodBankName(bloodBank.getName());
+                        request.setBloodBankName(bloodBank.getBloodBankName());
                         request.setBloodBankAddress(bloodBank.getAddress());
-                        request.setContactInformation(bloodBank.getContactInformation());
+                        request.setContactInformation(bloodBank.getPhone());
+                        request.setBloodBankPhone(bloodBank.getPhone());
+                        request.setBloodBankEmail(bloodBank.getEmail());
+                    }
+                }
+            }
+
+            log.info(MessageUtils.retrieveSuccess(HOSPITAL_REQUESTS));
+            return requests;
+        } catch (Exception e) {
+            String errorMessage = MessageUtils.retrieveError(HOSPITAL_REQUESTS);
+            log.error(errorMessage, e);
+            throw new ServiceException(errorMessage, e);
+        }
+    }
+
+    public List<HospitalRequest> findByBloodBankId(String bloodBankId) {
+        try {
+            List<HospitalRequest> requests = hospitalRequestRepository.findByBloodBankId(bloodBankId);
+
+            // Enrich requests with hospital and blood bank details
+            for (HospitalRequest request : requests) {
+                // Ensure bloodItems is not null
+                if (request.getBloodItems() == null || request.getBloodItems().isEmpty()) {
+                    request.setBloodItems(new java.util.ArrayList<>());
+                }
+                
+                // Enrich with hospital details
+                if (request.getHospitalId() != null) {
+                    try {
+                        Hospital hospital = hospitalRepository.findById(request.getHospitalId()).orElse(null);
+                        if (hospital != null) {
+                            request.setHospitalName(hospital.getHospitalName());
+                            request.setHospitalAddress(hospital.getAddress());
+                            request.setContactInformation(hospital.getPhone());
+                            log.debug("Enriched request {} with hospital details - Name: {}, Address: {}, Phone: {}", 
+                                request.getId(), hospital.getHospitalName(), hospital.getAddress(), hospital.getPhone());
+                        } else {
+                            log.warn("Hospital not found for ID: {}", request.getHospitalId());
+                        }
+                    } catch (Exception e) {
+                        log.error("Error fetching hospital details for ID: {}", request.getHospitalId(), e);
+                    }
+                }
+                
+                // Enrich with blood bank details
+                if (request.getBloodBankId() != null) {
+                    BloodBankUser bloodBank = bloodBankService.getById(request.getBloodBankId());
+                    if (bloodBank != null) {
+                        request.setBloodBankName(bloodBank.getBloodBankName());
+                        request.setBloodBankAddress(bloodBank.getAddress());
                         request.setBloodBankPhone(bloodBank.getPhone());
                         request.setBloodBankEmail(bloodBank.getEmail());
                     }

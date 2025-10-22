@@ -6,6 +6,8 @@ import RedSource.entities.utils.ResponseUtils;
 import RedSource.services.AppointmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -18,6 +20,8 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class AppointmentController {
 
+    private static final Logger log = LoggerFactory.getLogger(AppointmentController.class);
+    
     public static final String APPOINTMENTS = "Appointments";
     public static final String APPOINTMENT = "Appointment";
 
@@ -45,6 +49,17 @@ public class AppointmentController {
         );
     }
 
+    @GetMapping("/bloodbank/{bloodBankId}")
+    public ResponseEntity<?> getByBloodBankId(@PathVariable String bloodBankId) {
+        return ResponseEntity.ok(
+                ResponseUtils.buildSuccessResponse(
+                        HttpStatus.OK,
+                        MessageUtils.retrieveSuccess(APPOINTMENTS),
+                        appointmentService.getByBloodBankId(bloodBankId)
+                )
+        );
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(@PathVariable String id) {
         Appointment appointment = appointmentService.getById(id);
@@ -67,7 +82,12 @@ public class AppointmentController {
 
     @PostMapping
     public ResponseEntity<?> save(@Valid @RequestBody Appointment appointment, BindingResult bindingResult) {
+        log.info("POST /api/appointment - Received appointment creation request");
+        log.debug("Appointment data: donorId={}, userId={}, bloodBankId={}, appointmentDate={}", 
+                appointment.getDonorId(), appointment.getUserId(), appointment.getBloodBankId(), appointment.getAppointmentDate());
+        
         if (bindingResult.hasErrors()) {
+            log.warn("Appointment validation errors: {}", bindingResult.getAllErrors());
             return ResponseEntity.badRequest().body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.BAD_REQUEST,
@@ -75,14 +95,26 @@ public class AppointmentController {
                     )
             );
         }
-        Appointment savedAppointment = appointmentService.save(appointment);
-        return ResponseEntity.ok(
-                ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
-                        MessageUtils.saveSuccess(APPOINTMENT),
-                        savedAppointment
-                )
-        );
+        
+        try {
+            Appointment savedAppointment = appointmentService.save(appointment);
+            log.info("Appointment created successfully with ID: {}", savedAppointment.getId());
+            return ResponseEntity.ok(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.OK,
+                            MessageUtils.saveSuccess(APPOINTMENT),
+                            savedAppointment
+                    )
+            );
+        } catch (Exception e) {
+            log.error("Error saving appointment: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Failed to save appointment: " + e.getMessage()
+                    )
+            );
+        }
     }
 
     @PutMapping("/{id}")
@@ -114,6 +146,37 @@ public class AppointmentController {
         }
     }
 
+    @PutMapping("/{id}/status")
+    public ResponseEntity<?> updateStatus(@PathVariable String id, @RequestBody java.util.Map<String, String> statusUpdate) {
+        try {
+            String newStatus = statusUpdate.get("status");
+            if (newStatus == null || newStatus.isEmpty()) {
+                return ResponseEntity.badRequest().body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.BAD_REQUEST,
+                                "Status is required"
+                        )
+                );
+            }
+            
+            Appointment updatedAppointment = appointmentService.updateStatus(id, newStatus);
+            return ResponseEntity.ok(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.OK,
+                            "Appointment status updated successfully",
+                            updatedAppointment
+                    )
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    ResponseUtils.buildErrorResponse(
+                            HttpStatus.NOT_FOUND,
+                            e.getMessage()
+                    )
+            );
+        }
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable String id) {
         try {
@@ -128,6 +191,39 @@ public class AppointmentController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.NOT_FOUND,
+                            e.getMessage()
+                    )
+            );
+        }
+    }
+
+    @PostMapping("/{id}/mark-missed")
+    public ResponseEntity<?> markAsMissed(@PathVariable String id) {
+        try {
+            Appointment appointment = appointmentService.getById(id);
+            if (appointment == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.NOT_FOUND,
+                                "Appointment not found"
+                        )
+                );
+            }
+            
+            appointment.setStatus("Missed");
+            Appointment updated = appointmentService.update(id, appointment);
+            
+            return ResponseEntity.ok(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.OK,
+                            "Appointment marked as missed",
+                            updated
+                    )
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
                             e.getMessage()
                     )
             );

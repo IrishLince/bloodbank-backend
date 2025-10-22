@@ -21,8 +21,14 @@ public class Delivery implements Serializable {
     @Field("request_id")
     private String requestId; // Links to HospitalRequest
 
+    @Field("hospital_name")
+    private String hospitalName;
+
     @Field("blood_bank_name")
     private String bloodBankName;
+
+    @Field("blood_bank_id")
+    private String bloodBankId;
 
     @Field("blood_bank_address")
     private String bloodBankAddress;

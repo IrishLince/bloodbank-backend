@@ -40,4 +40,7 @@ public interface HospitalRepository extends MongoRepository<Hospital, String> {
     
     // Find urgent hospitals
     List<Hospital> findByUrgentNeedTrueAndIsDonationCenterTrue();
+    
+    // Delete donation centers (for test data cleanup)
+    void deleteByIsDonationCenterTrue();
 }

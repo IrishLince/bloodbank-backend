@@ -93,9 +93,6 @@ public class Appointment implements Serializable {
     @Field("patient_name")
     private String patientName;
 
-    @Field("donor_type")
-    private String donorType;
-
     @Field("donation_center")
     private String donationCenter;
 
