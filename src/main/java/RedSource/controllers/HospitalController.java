@@ -222,9 +222,20 @@ public class HospitalController {
     @PutMapping("/{id}/password")
     public ResponseEntity<?> updatePassword(@PathVariable String id, @RequestBody Map<String, String> requestBody) {
         try {
+            String currentPassword = requestBody.get("currentPassword");
             String newPassword = requestBody.get("newPassword");
-            String otpCode = requestBody.get("otpCode");
             
+            // Validate current password
+            if (currentPassword == null || currentPassword.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.BAD_REQUEST,
+                                "Current password is required"
+                        )
+                );
+            }
+            
+            // Validate new password
             if (newPassword == null || newPassword.trim().isEmpty()) {
                 return ResponseEntity.badRequest().body(
                         ResponseUtils.buildErrorResponse(
@@ -234,30 +245,28 @@ public class HospitalController {
                 );
             }
 
-            // Verify OTP if provided
-            if (otpCode != null && !otpCode.trim().isEmpty()) {
-                HospitalDTO hospital = hospitalService.getById(id);
-                if (hospital == null) {
-                    return ResponseEntity.badRequest().body(
-                            ResponseUtils.buildErrorResponse(
-                                    HttpStatus.BAD_REQUEST,
-                                    "Hospital not found"
-                            )
-                    );
-                }
-
-                OTPVerificationResponse otpResult = otpService.verifyOTP(hospital.getPhone(), otpCode, hospital.getEmail());
-                if (!otpResult.isSuccess()) {
-                    return ResponseEntity.badRequest().body(
-                            ResponseUtils.buildErrorResponse(
-                                    HttpStatus.BAD_REQUEST,
-                                    "OTP verification failed: " + otpResult.getMessage()
-                            )
-                    );
-                }
+            // Validate password length
+            if (newPassword.length() < 8) {
+                return ResponseEntity.badRequest().body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.BAD_REQUEST,
+                                "New password must be at least 8 characters long"
+                        )
+                );
             }
 
-            HospitalDTO updatedHospital = hospitalService.updatePassword(id, newPassword);
+            // Validate password strength (must contain uppercase, lowercase, number, and special character)
+            if (!newPassword.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$")) {
+                return ResponseEntity.badRequest().body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.BAD_REQUEST,
+                                "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)"
+                        )
+                );
+            }
+
+            // Update password with current password validation
+            HospitalDTO updatedHospital = hospitalService.updatePassword(id, currentPassword, newPassword);
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,

@@ -109,13 +109,25 @@ public class HospitalService {
         return hospitalRepository.existsByHospitalId(hospitalId);
     }
 
-    public HospitalDTO updatePassword(String id, String newPassword) {
+    public HospitalDTO updatePassword(String id, String currentPassword, String newPassword) {
         Optional<Hospital> hospitalOpt = hospitalRepository.findById(id);
         if (!hospitalOpt.isPresent()) {
             throw new RuntimeException("Hospital not found with id: " + id);
         }
 
         Hospital hospital = hospitalOpt.get();
+        
+        // Verify current password
+        if (!passwordEncoder.matches(currentPassword, hospital.getPassword())) {
+            throw new RuntimeException("Current password is incorrect");
+        }
+        
+        // Check if new password is same as current password
+        if (passwordEncoder.matches(newPassword, hospital.getPassword())) {
+            throw new RuntimeException("New password must be different from your current password");
+        }
+        
+        // Update to new password
         hospital.setPassword(passwordEncoder.encode(newPassword));
         hospital.setUpdatedAt(new Date());
 

@@ -122,6 +122,18 @@ public class UserService {
             // Preserve creation date from existing user
             user.setCreatedAt(existingUser.getCreatedAt());
             
+            // CRITICAL: Preserve reward system data - these fields should NEVER be modified via profile updates
+            // Reward points are only modified by the RewardPointsManagementService
+            // Always use existing values to prevent accidental overwrites
+            user.setRewardPoints(existingUser.getRewardPoints());
+            user.setTotalDonations(existingUser.getTotalDonations());
+            user.setDonorTier(existingUser.getDonorTier());
+            
+            // Preserve account status if not provided
+            if (user.getAccountStatus() == null || user.getAccountStatus().trim().isEmpty()) {
+                user.setAccountStatus(existingUser.getAccountStatus());
+            }
+            
             user.setId(id);
             user.setUpdatedAt(new Date());
             User updatedUser = userRepository.save(user);
