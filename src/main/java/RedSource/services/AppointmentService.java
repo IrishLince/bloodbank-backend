@@ -268,5 +268,118 @@ public class AppointmentService {
             return null;
         }
     }
+
+    /**
+     * Validate if a user can book a new appointment based on 3-month waiting period
+     * @param userId The donor's user ID
+     * @param newAppointmentDate The proposed new appointment date
+     * @return true if the user can book, false if they need to wait
+     */
+    public boolean canBookAppointment(String userId, Date newAppointmentDate) {
+        try {
+            if (userId == null || newAppointmentDate == null) {
+                return true; // Allow if no user or date provided
+            }
+
+            List<Appointment> userAppointments = appointmentRepository.findByUserId(userId);
+            
+            // Filter for Scheduled or Completed appointments
+            Date lastRelevantDate = userAppointments.stream()
+                .filter(appointment -> "Scheduled".equalsIgnoreCase(appointment.getStatus()) || 
+                                      "Complete".equalsIgnoreCase(appointment.getStatus()) || 
+                                      "Completed".equalsIgnoreCase(appointment.getStatus()))
+                .map(appointment -> {
+                    if (appointment.getAppointmentDate() != null) {
+                        return appointment.getAppointmentDate();
+                    } else if (appointment.getVisitationDate() != null) {
+                        return appointment.getVisitationDate();
+                    } else if (appointment.getDateToday() != null) {
+                        try {
+                            return new java.text.SimpleDateFormat("yyyy-MM-dd").parse(appointment.getDateToday());
+                        } catch (Exception e) {
+                            log.warn("Could not parse dateToday: {}", appointment.getDateToday());
+                            return null;
+                        }
+                    }
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .max(Date::compareTo)
+                .orElse(null);
+
+            if (lastRelevantDate == null) {
+                log.info("No previous appointments found for user {}, allowing booking", userId);
+                return true; // No previous appointments, allow booking
+            }
+
+            // Calculate 3 months from last appointment
+            Calendar cal = Calendar.getInstance();
+            cal.setTime(lastRelevantDate);
+            cal.add(Calendar.MONTH, 3);
+            Date threeMonthsLater = cal.getTime();
+
+            // Check if new appointment is at least 3 months after last appointment
+            boolean canBook = !newAppointmentDate.before(threeMonthsLater);
+            
+            log.info("Booking validation for user {}: lastAppointment={}, threeMonthsLater={}, newDate={}, canBook={}", 
+                    userId, lastRelevantDate, threeMonthsLater, newAppointmentDate, canBook);
+            
+            return canBook;
+        } catch (Exception e) {
+            log.error("Error validating appointment booking for user: " + userId, e);
+            return true; // Allow booking on error to not block users
+        }
+    }
+
+    /**
+     * Get the next eligible donation date for a user
+     * @param userId The donor's user ID
+     * @return The next eligible date (3 months after last appointment), or null if no restrictions
+     */
+    public Date getNextEligibleDonationDate(String userId) {
+        try {
+            if (userId == null) {
+                return null;
+            }
+
+            List<Appointment> userAppointments = appointmentRepository.findByUserId(userId);
+            
+            Date lastRelevantDate = userAppointments.stream()
+                .filter(appointment -> "Scheduled".equalsIgnoreCase(appointment.getStatus()) || 
+                                      "Complete".equalsIgnoreCase(appointment.getStatus()) || 
+                                      "Completed".equalsIgnoreCase(appointment.getStatus()))
+                .map(appointment -> {
+                    if (appointment.getAppointmentDate() != null) {
+                        return appointment.getAppointmentDate();
+                    } else if (appointment.getVisitationDate() != null) {
+                        return appointment.getVisitationDate();
+                    } else if (appointment.getDateToday() != null) {
+                        try {
+                            return new java.text.SimpleDateFormat("yyyy-MM-dd").parse(appointment.getDateToday());
+                        } catch (Exception e) {
+                            return null;
+                        }
+                    }
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .max(Date::compareTo)
+                .orElse(null);
+
+            if (lastRelevantDate == null) {
+                return null; // No restrictions
+            }
+
+            // Calculate 3 months from last appointment
+            Calendar cal = Calendar.getInstance();
+            cal.setTime(lastRelevantDate);
+            cal.add(Calendar.MONTH, 3);
+            
+            return cal.getTime();
+        } catch (Exception e) {
+            log.error("Error getting next eligible donation date for user: " + userId, e);
+            return null;
+        }
+    }
 }
 

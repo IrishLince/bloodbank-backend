@@ -97,6 +97,27 @@ public class AppointmentController {
         }
         
         try {
+            // Validate 3-month waiting period for blood donations
+            String userId = appointment.getUserId() != null ? appointment.getUserId() : appointment.getDonorId();
+            if (userId != null && appointment.getAppointmentDate() != null) {
+                boolean canBook = appointmentService.canBookAppointment(userId, appointment.getAppointmentDate());
+                if (!canBook) {
+                    java.util.Date nextEligibleDate = appointmentService.getNextEligibleDonationDate(userId);
+                    String errorMessage = String.format(
+                        "You must wait at least 3 months between blood donations for your health and safety. " +
+                        "Your next eligible donation date is: %s",
+                        nextEligibleDate != null ? new java.text.SimpleDateFormat("MMMM dd, yyyy").format(nextEligibleDate) : "unknown"
+                    );
+                    log.warn("Appointment booking denied for user {}: too soon after last appointment", userId);
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                            ResponseUtils.buildErrorResponse(
+                                    HttpStatus.BAD_REQUEST,
+                                    errorMessage
+                            )
+                    );
+                }
+            }
+            
             Appointment savedAppointment = appointmentService.save(appointment);
             log.info("Appointment created successfully with ID: {}", savedAppointment.getId());
             return ResponseEntity.ok(
