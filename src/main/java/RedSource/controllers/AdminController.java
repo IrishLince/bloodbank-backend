@@ -2,17 +2,20 @@ package RedSource.controllers;
 
 import RedSource.entities.BloodBankUser;
 import RedSource.entities.Hospital;
-import RedSource.entities.User;
 import RedSource.entities.enums.UserRoleType;
 import RedSource.repositories.BloodBankUserRepository;
 import RedSource.repositories.HospitalRepository;
 import RedSource.repositories.UserRepository;
 import RedSource.entities.utils.ResponseUtils;
+import RedSource.services.FileStorageService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -36,12 +39,22 @@ public class AdminController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private FileStorageService fileStorageService;
+
     /**
      * Register a new Hospital user
      */
-    @PostMapping("/register-hospital")
-    public ResponseEntity<?> registerHospital(@RequestBody Map<String, Object> hospitalData) {
+    @PostMapping(value = "/register-hospital", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> registerHospital(
+            @RequestPart("data") String hospitalDataJson,
+            @RequestPart(value = "photo", required = false) MultipartFile photo) {
         try {
+            // Parse JSON data
+            ObjectMapper objectMapper = new ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> hospitalData = (Map<String, Object>) objectMapper.readValue(hospitalDataJson, Map.class);
+            
             // Extract data
             String email = (String) hospitalData.get("email");
             String password = (String) hospitalData.get("password");
@@ -50,7 +63,7 @@ public class AdminController {
             String contactNumber = (String) hospitalData.get("contactNumber");
             String address = (String) hospitalData.get("address");
             String operatingHours = (String) hospitalData.get("operatingHours");
-            Boolean isDonationCenter = (Boolean) hospitalData.getOrDefault("isDonationCenter", false);
+            Boolean isDonationCenter = false; // Default to false, checkbox removed from frontend
 
             // Validate required fields
             if (email == null || password == null || hospitalName == null || licenseNumber == null) {
@@ -62,56 +75,100 @@ public class AdminController {
                 );
             }
 
-            // Check if email already exists
-            if (userRepository.findByEmail(email).isPresent() || 
-                hospitalRepository.findByEmail(email).isPresent()) {
+            // Check if email already exists in User collection (for cross-collection uniqueness)
+            if (userRepository.findByEmail(email).isPresent()) {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.CONFLICT,
-                                "Email already exists"
+                                "Email already exists in users collection"
+                        )
+                );
+            }
+
+            // Check if email already exists in Hospital collection
+            if (hospitalRepository.findByEmail(email).isPresent()) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.CONFLICT,
+                                "Email already exists as a hospital"
+                        )
+                );
+            }
+
+            // Check if email already exists in BloodBankUser collection (for cross-collection uniqueness)
+            if (bloodBankUserRepository.findByEmail(email).isPresent()) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.CONFLICT,
+                                "Email already exists as a blood bank"
                         )
                 );
             }
 
             // Note: License number uniqueness check can be added if needed
 
-            // Create User entity
-            User user = User.builder()
-                    .email(email)
-                    .password(passwordEncoder.encode(password))
-                    .name(hospitalName)
-                    .username(email)
-                    .role(UserRoleType.HOSPITAL)
-                    .contactInformation(contactNumber)
-                    .createdAt(new Date())
-                    .updatedAt(new Date())
-                    .accountStatus("ACTIVE")
-                    .build();
+            // Only create Hospital entity (NOT User entity in users collection)
+            Hospital savedHospital;
+            String photoUrl = null; // Declare outside try block for cleanup in catch
+            
+            try {
+                // Store photo if provided
+                if (photo != null && !photo.isEmpty()) {
+                    try {
+                        photoUrl = fileStorageService.storeUserPhoto(photo);
+                    } catch (Exception ex) {
+                        // If photo upload fails, proceed without photo
+                        System.err.println("Failed to upload hospital profile photo: " + ex.getMessage());
+                        photoUrl = null;
+                    }
+                }
+                
+                // Create Hospital entity only
+                Hospital.HospitalBuilder hospitalBuilder = Hospital.builder()
+                        .email(email)
+                        .password(passwordEncoder.encode(password))
+                        .username(email)
+                        .hospitalName(hospitalName)
+                        .licenseNumber(licenseNumber)
+                        .phone(contactNumber)
+                        .address(address)
+                        .operatingHours(operatingHours)
+                        .isDonationCenter(isDonationCenter)
+                        .createdAt(new Date())
+                        .updatedAt(new Date());
+                
+                if (photoUrl != null) {
+                    hospitalBuilder.profilePhotoUrl(photoUrl);
+                }
+                
+                Hospital hospital = hospitalBuilder.build();
 
-            User savedUser = userRepository.save(user);
-
-            // Create Hospital entity
-            Hospital hospital = Hospital.builder()
-                    .email(email)
-                    .password(passwordEncoder.encode(password))
-                    .hospitalName(hospitalName)
-                    .licenseNumber(licenseNumber)
-                    .phone(contactNumber)
-                    .address(address)
-                    .operatingHours(operatingHours)
-                    .isDonationCenter(isDonationCenter)
-                    .createdAt(new Date())
-                    .build();
-
-            Hospital savedHospital = hospitalRepository.save(hospital);
+                savedHospital = hospitalRepository.save(hospital);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                // If registration fails, clean up uploaded photo
+                if (photoUrl != null) {
+                    try {
+                        fileStorageService.deleteFile(photoUrl);
+                    } catch (Exception deleteEx) {
+                        System.err.println("Failed to clean up photo after registration error: " + deleteEx.getMessage());
+                    }
+                }
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.CONFLICT,
+                                "Email already exists (duplicate key detected)"
+                        )
+                );
+            }
+            
+            // If save succeeds but there was a photo upload error, we already handled it above
 
             // Build response
             Map<String, Object> response = new HashMap<>();
-            response.put("userId", savedUser.getId());
-            response.put("hospitalId", savedHospital.getHospitalId());
-            response.put("email", savedUser.getEmail());
+            response.put("hospitalId", savedHospital.getId()); // Use Hospital entity's MongoDB ObjectId
+            response.put("email", savedHospital.getEmail());
             response.put("hospitalName", savedHospital.getHospitalName());
-            response.put("role", savedUser.getRole());
+            response.put("role", "HOSPITAL");
 
             return ResponseEntity.status(HttpStatus.CREATED).body(
                     ResponseUtils.buildSuccessResponse(
@@ -122,6 +179,9 @@ public class AdminController {
             );
 
         } catch (Exception e) {
+            // If any error occurs and photo was uploaded, clean it up
+            // Note: photoUrl is scoped within the try block, so we can't access it here
+            // The photo cleanup is handled in the DuplicateKeyException catch block above
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -134,9 +194,16 @@ public class AdminController {
     /**
      * Register a new Blood Bank user
      */
-    @PostMapping("/register-bloodbank")
-    public ResponseEntity<?> registerBloodBank(@RequestBody Map<String, Object> bloodBankData) {
+    @PostMapping(value = "/register-bloodbank", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> registerBloodBank(
+            @RequestPart("data") String bloodBankDataJson,
+            @RequestPart(value = "photo", required = false) MultipartFile photo) {
         try {
+            // Parse JSON data
+            ObjectMapper objectMapper = new ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> bloodBankData = (Map<String, Object>) objectMapper.readValue(bloodBankDataJson, Map.class);
+            
             // Extract data
             String email = (String) bloodBankData.get("email");
             String password = (String) bloodBankData.get("password");
@@ -162,55 +229,100 @@ public class AdminController {
                 );
             }
 
-            // Check if email already exists
-            if (userRepository.findByEmail(email).isPresent() || 
-                bloodBankUserRepository.findByEmail(email).isPresent()) {
+            // Check if email already exists in User collection (for cross-collection uniqueness)
+            if (userRepository.findByEmail(email).isPresent()) {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.CONFLICT,
-                                "Email already exists"
+                                "Email already exists in users collection"
+                        )
+                );
+            }
+
+            // Check if email already exists in Hospital collection (for cross-collection uniqueness)
+            if (hospitalRepository.findByEmail(email).isPresent()) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.CONFLICT,
+                                "Email already exists as a hospital"
+                        )
+                );
+            }
+
+            // Check if email already exists in BloodBankUser collection
+            if (bloodBankUserRepository.findByEmail(email).isPresent()) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.CONFLICT,
+                                "Email already exists as a blood bank"
                         )
                 );
             }
 
             // Note: License number uniqueness check can be added if needed
 
-            // Create User entity
-            User user = User.builder()
-                    .email(email)
-                    .password(passwordEncoder.encode(password))
-                    .name(bloodBankName)
-                    .username(email)
-                    .role(UserRoleType.BLOODBANK)
-                    .contactInformation(contactNumber)
-                    .createdAt(new Date())
-                    .updatedAt(new Date())
-                    .accountStatus("ACTIVE")
-                    .build();
+            // Only create BloodBankUser entity (NOT User entity in users collection)
+            BloodBankUser savedBloodBank;
+            String photoUrl = null; // Declare outside try block for cleanup in catch
+            
+            try {
+                // Store photo if provided
+                if (photo != null && !photo.isEmpty()) {
+                    try {
+                        photoUrl = fileStorageService.storeUserPhoto(photo);
+                    } catch (Exception ex) {
+                        // If photo upload fails, proceed without photo
+                        System.err.println("Failed to upload blood bank profile photo: " + ex.getMessage());
+                        photoUrl = null;
+                    }
+                }
+                
+                // Create BloodBankUser entity only
+                BloodBankUser.BloodBankUserBuilder bloodBankUserBuilder = BloodBankUser.builder()
+                        .email(email)
+                        .password(passwordEncoder.encode(password))
+                        .username(email)
+                        .bloodBankName(bloodBankName)
+                        .licenseNumber(licenseNumber)
+                        .phone(contactNumber)
+                        .address(address)
+                        .operatingHours(operatingHours)
+                        .role("BLOODBANK")
+                        .createdAt(new Date())
+                        .updatedAt(new Date());
+                
+                if (photoUrl != null) {
+                    bloodBankUserBuilder.profilePhotoUrl(photoUrl);
+                }
+                
+                BloodBankUser bloodBankUser = bloodBankUserBuilder.build();
 
-            User savedUser = userRepository.save(user);
-
-            // Create BloodBankUser entity
-            BloodBankUser bloodBankUser = BloodBankUser.builder()
-                    .email(email)
-                    .password(passwordEncoder.encode(password))
-                    .bloodBankName(bloodBankName)
-                    .licenseNumber(licenseNumber)
-                    .phone(contactNumber)
-                    .address(address)
-                    .operatingHours(operatingHours)
-                    .createdAt(new Date())
-                    .build();
-
-            BloodBankUser savedBloodBank = bloodBankUserRepository.save(bloodBankUser);
+                savedBloodBank = bloodBankUserRepository.save(bloodBankUser);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                // If registration fails, clean up uploaded photo
+                if (photoUrl != null) {
+                    try {
+                        fileStorageService.deleteFile(photoUrl);
+                    } catch (Exception deleteEx) {
+                        System.err.println("Failed to clean up photo after registration error: " + deleteEx.getMessage());
+                    }
+                }
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.CONFLICT,
+                                "Email already exists (duplicate key detected)"
+                        )
+                );
+            }
+            
+            // If save succeeds but there was a photo upload error, we already handled it above
 
             // Build response
             Map<String, Object> response = new HashMap<>();
-            response.put("userId", savedUser.getId());
-            response.put("bloodBankId", savedBloodBank.getBloodBankId());
-            response.put("email", savedUser.getEmail());
+            response.put("bloodBankId", savedBloodBank.getId()); // Use BloodBankUser entity's MongoDB ObjectId
+            response.put("email", savedBloodBank.getEmail());
             response.put("bloodBankName", savedBloodBank.getBloodBankName());
-            response.put("role", savedUser.getRole());
+            response.put("role", "BLOODBANK");
 
             return ResponseEntity.status(HttpStatus.CREATED).body(
                     ResponseUtils.buildSuccessResponse(

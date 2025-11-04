@@ -88,7 +88,7 @@ public class User implements Serializable {
     private String address;
     
     @Field("age")
-    @Min(value = 18, message = "Age must be at least 18")
+    @Min(value = 16, message = "Age must be at least 16")
     @Max(value = 120, message = "Age must not exceed 120")
     private Integer age;
     

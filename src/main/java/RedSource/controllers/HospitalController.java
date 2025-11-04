@@ -356,8 +356,9 @@ public class HospitalController {
         }
     }
 
-    // Upload profile photo
+    // Upload profile photo (Admin only)
     @PostMapping(value = "/{id}/upload-profile-photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> uploadProfilePhoto(
             @PathVariable String id,
             @RequestPart("photo") MultipartFile photo) {
@@ -409,8 +410,9 @@ public class HospitalController {
         }
     }
 
-    // Remove profile photo
+    // Remove profile photo (Admin only)
     @DeleteMapping("/{id}/photo")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> removeProfilePhoto(@PathVariable String id) {
         try {
             HospitalDTO hospital = hospitalService.getById(id);
