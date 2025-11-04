@@ -1,5 +1,8 @@
-# Use Eclipse Temurin 17 as base image
-FROM eclipse-temurin:17
+# Use Amazon Corretto 17 as base image (reliable for Railway deployment)
+FROM amazoncorretto:17-alpine
+
+# Install required packages for Maven wrapper
+RUN apk add --no-cache bash
 
 # Set working directory
 WORKDIR /app
