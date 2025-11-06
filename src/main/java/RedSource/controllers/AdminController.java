@@ -197,7 +197,8 @@ public class AdminController {
     @PostMapping(value = "/register-bloodbank", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> registerBloodBank(
             @RequestPart("data") String bloodBankDataJson,
-            @RequestPart(value = "photo", required = false) MultipartFile photo) {
+            @RequestPart(value = "photo", required = false) MultipartFile photo,
+            @RequestPart(value = "coverImage", required = false) MultipartFile coverImage) {
         try {
             // Parse JSON data
             ObjectMapper objectMapper = new ObjectMapper();
@@ -264,6 +265,7 @@ public class AdminController {
             // Only create BloodBankUser entity (NOT User entity in users collection)
             BloodBankUser savedBloodBank;
             String photoUrl = null; // Declare outside try block for cleanup in catch
+            String coverImageUrl = null; // Declare outside try block for cleanup in catch
             
             try {
                 // Store photo if provided
@@ -274,6 +276,17 @@ public class AdminController {
                         // If photo upload fails, proceed without photo
                         System.err.println("Failed to upload blood bank profile photo: " + ex.getMessage());
                         photoUrl = null;
+                    }
+                }
+                
+                // Store cover image if provided
+                if (coverImage != null && !coverImage.isEmpty()) {
+                    try {
+                        coverImageUrl = fileStorageService.storeUserPhoto(coverImage);
+                    } catch (Exception ex) {
+                        // If cover image upload fails, proceed without cover image
+                        System.err.println("Failed to upload blood bank cover image: " + ex.getMessage());
+                        coverImageUrl = null;
                     }
                 }
                 
@@ -295,16 +308,27 @@ public class AdminController {
                     bloodBankUserBuilder.profilePhotoUrl(photoUrl);
                 }
                 
+                if (coverImageUrl != null) {
+                    bloodBankUserBuilder.coverImageUrl(coverImageUrl);
+                }
+                
                 BloodBankUser bloodBankUser = bloodBankUserBuilder.build();
 
                 savedBloodBank = bloodBankUserRepository.save(bloodBankUser);
             } catch (org.springframework.dao.DuplicateKeyException e) {
-                // If registration fails, clean up uploaded photo
+                // If registration fails, clean up uploaded files
                 if (photoUrl != null) {
                     try {
                         fileStorageService.deleteFile(photoUrl);
                     } catch (Exception deleteEx) {
                         System.err.println("Failed to clean up photo after registration error: " + deleteEx.getMessage());
+                    }
+                }
+                if (coverImageUrl != null) {
+                    try {
+                        fileStorageService.deleteFile(coverImageUrl);
+                    } catch (Exception deleteEx) {
+                        System.err.println("Failed to clean up cover image after registration error: " + deleteEx.getMessage());
                     }
                 }
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(

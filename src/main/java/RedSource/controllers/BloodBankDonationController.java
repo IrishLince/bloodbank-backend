@@ -23,13 +23,48 @@ public class BloodBankDonationController {
         try {
             List<BloodBankUser> bloodBanks = bloodBankUserRepository.findAll();
             
-            // DEBUG: API response logging (can be removed in production)
+            // DEBUG: Enhanced API response logging
             System.out.println("📍 DONATION CENTERS API - Returning " + bloodBanks.size() + " blood banks");
+            System.out.println("🏥 Blood Bank Names:");
+            for (int i = 0; i < bloodBanks.size(); i++) {
+                BloodBankUser bb = bloodBanks.get(i);
+                System.out.println("  " + (i+1) + ". " + bb.getBloodBankName() + " (ID: " + bb.getId() + ")");
+            }
             
             return ResponseEntity.ok(bloodBanks);
         } catch (Exception e) {
             System.err.println("❌ ERROR in donation-centers API: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    // Debug endpoint: Get raw count of blood banks in database
+    @GetMapping("/debug/count")
+    @CrossOrigin(origins = "*", allowCredentials = "false")
+    public ResponseEntity<String> getBloodBankCount() {
+        try {
+            long count = bloodBankUserRepository.count();
+            List<BloodBankUser> allBanks = bloodBankUserRepository.findAll();
+            
+            StringBuilder response = new StringBuilder();
+            response.append("📊 BLOOD BANK DATABASE DEBUG:\n");
+            response.append("Total Count: ").append(count).append("\n");
+            response.append("Retrieved Count: ").append(allBanks.size()).append("\n\n");
+            response.append("📋 All Blood Banks:\n");
+            
+            for (int i = 0; i < allBanks.size(); i++) {
+                BloodBankUser bb = allBanks.get(i);
+                response.append(String.format("%d. %s (ID: %s, Email: %s)\n", 
+                    i+1, bb.getBloodBankName(), bb.getId(), bb.getEmail()));
+            }
+            
+            System.out.println(response.toString());
+            return ResponseEntity.ok(response.toString());
+        } catch (Exception e) {
+            String error = "❌ ERROR in debug count: " + e.getMessage();
+            System.err.println(error);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
 

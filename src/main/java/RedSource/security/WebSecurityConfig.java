@@ -70,6 +70,7 @@ public class WebSecurityConfig {
                         .requestMatchers("/api/bloodbanks/donation-centers").permitAll()
                         .requestMatchers("/api/bloodbanks/nearby").permitAll()
                         .requestMatchers("/api/bloodbanks/search").permitAll()
+                        .requestMatchers("/api/bloodbanks/debug/**").permitAll()
                         .anyRequest().authenticated());
 
         http.authenticationProvider(authenticationProvider());

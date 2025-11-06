@@ -59,6 +59,9 @@ public class BloodBankUser implements Serializable {
     @Field("profile_photo_url")
     private String profilePhotoUrl;
 
+    @Field("cover_image_url")
+    private String coverImageUrl;
+
     @Field("operating_hours")
     private String operatingHours;
 
@@ -161,6 +164,14 @@ public class BloodBankUser implements Serializable {
 
     public void setProfilePhotoUrl(String profilePhotoUrl) {
         this.profilePhotoUrl = profilePhotoUrl;
+    }
+
+    public String getCoverImageUrl() {
+        return coverImageUrl;
+    }
+
+    public void setCoverImageUrl(String coverImageUrl) {
+        this.coverImageUrl = coverImageUrl;
     }
 
     public String getOperatingHours() {
