@@ -1,25 +1,30 @@
 # Use Amazon Corretto 17 as base image (reliable for Railway deployment)
 FROM amazoncorretto:17-alpine
 
-# Install required packages for Maven wrapper
-RUN apk add --no-cache bash
+# Install required packages for Maven
+RUN apk add --no-cache bash maven
 
 # Set working directory
 WORKDIR /app
 
-# Copy Maven wrapper and pom.xml
-COPY mvnw .
+# Copy Maven wrapper files
 COPY .mvn .mvn
-COPY pom.xml .
+COPY mvnw mvnw.cmd ./
 
 # Make Maven wrapper executable
-RUN chmod +x ./mvnw
+RUN chmod +x mvnw
+
+# Copy pom.xml
+COPY pom.xml .
+
+# Download dependencies (cache layer)
+RUN mvn dependency:go-offline -B || true
 
 # Copy source code
 COPY src ./src
 
-# Build the application
-RUN ./mvnw clean package -DskipTests
+# Build the application using Maven directly (more reliable than wrapper)
+RUN mvn clean package -DskipTests -B
 
 # Expose port
 EXPOSE 8080
