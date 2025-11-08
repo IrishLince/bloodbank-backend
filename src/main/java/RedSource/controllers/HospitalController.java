@@ -22,6 +22,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @CrossOrigin(origins = "http://localhost:3000", maxAge = 3600)
 @PreAuthorize("hasRole('HOSPITAL') or hasRole('ADMIN')")
@@ -29,6 +31,8 @@ import java.util.HashMap;
 @RequestMapping("/api/hospital")
 @RequiredArgsConstructor
 public class HospitalController {
+
+    private static final Logger logger = LoggerFactory.getLogger(HospitalController.class);
 
     public static final String HOSPITAL = "Hospital";
     public static final String HOSPITALS = "Hospitals";
@@ -41,42 +45,59 @@ public class HospitalController {
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getAll() {
-        List<HospitalDTO> hospitals = hospitalService.getAll();
-        return ResponseEntity.ok(
-                ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
-                        MessageUtils.retrieveSuccess(HOSPITALS),
-                        hospitals
-                )
-        );
+        logger.debug("GET /api/hospital - Retrieving all hospitals");
+        try {
+            List<HospitalDTO> hospitals = hospitalService.getAll();
+            logger.info("GET /api/hospital - Successfully retrieved {} hospitals", hospitals.size());
+            return ResponseEntity.ok(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.OK,
+                            MessageUtils.retrieveSuccess(HOSPITALS),
+                            hospitals
+                    )
+            );
+        } catch (Exception e) {
+            logger.error("GET /api/hospital - Error retrieving hospitals: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     // Get hospital by ID
     @GetMapping("/{id}")
     public ResponseEntity<?> getHospitalById(@PathVariable String id) {
-        HospitalDTO hospital = hospitalService.getById(id);
-        if (hospital == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                    ResponseUtils.buildErrorResponse(
-                            HttpStatus.NOT_FOUND,
-                            "Hospital not found"
+        logger.debug("GET /api/hospital/{} - Retrieving hospital by ID", id);
+        try {
+            HospitalDTO hospital = hospitalService.getById(id);
+            if (hospital == null) {
+                logger.warn("GET /api/hospital/{} - Hospital not found", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.NOT_FOUND,
+                                "Hospital not found"
+                        )
+                );
+            }
+            logger.debug("GET /api/hospital/{} - Successfully retrieved hospital: {}", id, hospital.getHospitalName());
+            return ResponseEntity.ok(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.OK,
+                            MessageUtils.retrieveSuccess(HOSPITAL),
+                            hospital
                     )
             );
+        } catch (Exception e) {
+            logger.error("GET /api/hospital/{} - Error retrieving hospital: {}", id, e.getMessage(), e);
+            throw e;
         }
-        return ResponseEntity.ok(
-                ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
-                        MessageUtils.retrieveSuccess(HOSPITAL),
-                        hospital
-                )
-        );
     }
 
     // Get current hospital profile (for authenticated hospital)
     @GetMapping("/profile")
     public ResponseEntity<?> getCurrentProfile(@AuthenticationPrincipal UserDetailsImpl userDetails) {
+        logger.debug("GET /api/hospital/profile - Retrieving current hospital profile");
         try {
             if (userDetails == null) {
+                logger.warn("GET /api/hospital/profile - Authentication required");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.UNAUTHORIZED,
@@ -145,19 +166,27 @@ public class HospitalController {
             );
         }
 
-        HospitalDTO savedHospital = hospitalService.save(hospitalDTO);
-        return ResponseEntity.ok(
-                ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
-                        MessageUtils.saveSuccess(HOSPITAL),
-                        savedHospital
-                )
-        );
+        logger.debug("POST /api/hospital - Creating new hospital: {}", hospitalDTO.getHospitalName());
+        try {
+            HospitalDTO savedHospital = hospitalService.save(hospitalDTO);
+            logger.info("POST /api/hospital - Successfully created hospital: {} (ID: {})", savedHospital.getHospitalName(), savedHospital.getId());
+            return ResponseEntity.status(HttpStatus.CREATED).body(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.CREATED,
+                            MessageUtils.saveSuccess(HOSPITAL),
+                            savedHospital
+                    )
+            );
+        } catch (Exception e) {
+            logger.error("POST /api/hospital - Error creating hospital: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     // Update hospital profile
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable String id, @RequestBody Map<String, Object> requestBody) {
+        logger.debug("PUT /api/hospital/{} - Updating hospital profile", id);
         try {
             // Extract HospitalDTO from request body
             HospitalDTO hospitalDTO = mapToHospitalDTO(requestBody);
@@ -178,9 +207,9 @@ public class HospitalController {
                 // Get hospital's email for OTP verification
                 HospitalDTO existingHospital = hospitalService.getById(id);
                 if (existingHospital == null) {
-                    return ResponseEntity.badRequest().body(
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                             ResponseUtils.buildErrorResponse(
-                                    HttpStatus.BAD_REQUEST,
+                                    HttpStatus.NOT_FOUND,
                                     "Hospital not found"
                             )
                     );
@@ -201,6 +230,16 @@ public class HospitalController {
             }
 
             HospitalDTO updatedHospital = hospitalService.update(id, hospitalDTO);
+            if (updatedHospital == null) {
+                logger.warn("PUT /api/hospital/{} - Hospital not found", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.NOT_FOUND,
+                                "Hospital not found"
+                        )
+                );
+            }
+            logger.info("PUT /api/hospital/{} - Successfully updated hospital: {}", id, updatedHospital.getHospitalName());
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -209,11 +248,12 @@ public class HospitalController {
                     )
             );
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                    ResponseUtils.buildErrorResponse(
-                            HttpStatus.NOT_FOUND,
-                            e.getMessage()
-                    )
+            String message = e.getMessage().toLowerCase();
+            HttpStatus status = (message.contains("not found") || message.contains("does not exist")) 
+                    ? HttpStatus.NOT_FOUND 
+                    : HttpStatus.INTERNAL_SERVER_ERROR;
+            return ResponseEntity.status(status).body(
+                    ResponseUtils.buildErrorResponse(status, e.getMessage())
             );
         }
     }
@@ -221,6 +261,7 @@ public class HospitalController {
     // Update hospital password
     @PutMapping("/{id}/password")
     public ResponseEntity<?> updatePassword(@PathVariable String id, @RequestBody Map<String, String> requestBody) {
+        logger.debug("PUT /api/hospital/{}/password - Updating hospital password", id);
         try {
             String currentPassword = requestBody.get("currentPassword");
             String newPassword = requestBody.get("newPassword");
@@ -267,6 +308,7 @@ public class HospitalController {
 
             // Update password with current password validation
             HospitalDTO updatedHospital = hospitalService.updatePassword(id, currentPassword, newPassword);
+            logger.info("PUT /api/hospital/{}/password - Successfully updated hospital password", id);
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -287,9 +329,11 @@ public class HospitalController {
     // Send OTP for password change
     @PostMapping("/{id}/send-password-otp")
     public ResponseEntity<?> sendPasswordOTP(@PathVariable String id) {
+        logger.debug("POST /api/hospital/{}/send-password-otp - Sending password OTP", id);
         try {
             HospitalDTO hospital = hospitalService.getById(id);
             if (hospital == null) {
+                logger.warn("POST /api/hospital/{}/send-password-otp - Hospital not found", id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.NOT_FOUND,
@@ -299,6 +343,7 @@ public class HospitalController {
             }
 
             otpService.generateAndSendOTP(hospital.getPhone(), hospital.getEmail());
+            logger.info("POST /api/hospital/{}/send-password-otp - Successfully sent OTP to hospital", id);
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -306,6 +351,7 @@ public class HospitalController {
                     )
             );
         } catch (Exception e) {
+            logger.error("POST /api/hospital/{}/send-password-otp - Error sending OTP: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.BAD_REQUEST,
@@ -318,9 +364,11 @@ public class HospitalController {
     // Send OTP for phone verification
     @PostMapping("/{id}/send-phone-otp")
     public ResponseEntity<?> sendPhoneOTP(@PathVariable String id, @RequestBody Map<String, String> requestBody) {
+        logger.debug("POST /api/hospital/{}/send-phone-otp - Sending phone OTP", id);
         try {
             String newPhoneNumber = requestBody.get("phoneNumber");
             if (newPhoneNumber == null || newPhoneNumber.trim().isEmpty()) {
+                logger.warn("POST /api/hospital/{}/send-phone-otp - Phone number is required", id);
                 return ResponseEntity.badRequest().body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.BAD_REQUEST,
@@ -331,6 +379,7 @@ public class HospitalController {
 
             HospitalDTO hospital = hospitalService.getById(id);
             if (hospital == null) {
+                logger.warn("POST /api/hospital/{}/send-phone-otp - Hospital not found", id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.NOT_FOUND,
@@ -340,6 +389,7 @@ public class HospitalController {
             }
 
             otpService.generateAndSendOTP(newPhoneNumber, hospital.getEmail());
+            logger.info("POST /api/hospital/{}/send-phone-otp - Successfully sent phone OTP", id);
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -347,6 +397,7 @@ public class HospitalController {
                     )
             );
         } catch (Exception e) {
+            logger.error("POST /api/hospital/{}/send-phone-otp - Error sending OTP: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.BAD_REQUEST,
@@ -362,9 +413,11 @@ public class HospitalController {
     public ResponseEntity<?> uploadProfilePhoto(
             @PathVariable String id,
             @RequestPart("photo") MultipartFile photo) {
+        logger.debug("POST /api/hospital/{}/upload-profile-photo - Uploading profile photo (size: {} bytes)", id, photo.getSize());
         try {
             HospitalDTO hospital = hospitalService.getById(id);
             if (hospital == null) {
+                logger.warn("POST /api/hospital/{}/upload-profile-photo - Hospital not found", id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.NOT_FOUND,
@@ -377,8 +430,9 @@ public class HospitalController {
             if (hospital.getProfilePhotoUrl() != null && !hospital.getProfilePhotoUrl().isEmpty()) {
                 try {
                     fileStorageService.deleteFile(hospital.getProfilePhotoUrl());
+                    logger.debug("POST /api/hospital/{}/upload-profile-photo - Deleted old profile photo", id);
                 } catch (Exception e) {
-                    System.err.println("Failed to delete old profile photo: " + e.getMessage());
+                    logger.warn("POST /api/hospital/{}/upload-profile-photo - Failed to delete old profile photo: {}", id, e.getMessage());
                 }
             }
             
@@ -387,6 +441,7 @@ public class HospitalController {
             
             // Update hospital's profile photo URL
             HospitalDTO updatedHospital = hospitalService.updateProfilePhoto(id, photoUrl);
+            logger.info("POST /api/hospital/{}/upload-profile-photo - Successfully uploaded profile photo", id);
 
             // Return response with photo URL
             Map<String, Object> response = new HashMap<>();
@@ -401,6 +456,7 @@ public class HospitalController {
                     )
             );
         } catch (Exception e) {
+            logger.error("POST /api/hospital/{}/upload-profile-photo - Error uploading photo: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.BAD_REQUEST,
@@ -414,9 +470,11 @@ public class HospitalController {
     @DeleteMapping("/{id}/photo")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> removeProfilePhoto(@PathVariable String id) {
+        logger.debug("DELETE /api/hospital/{}/photo - Removing profile photo", id);
         try {
             HospitalDTO hospital = hospitalService.getById(id);
             if (hospital == null) {
+                logger.warn("DELETE /api/hospital/{}/photo - Hospital not found", id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.NOT_FOUND,
@@ -429,13 +487,15 @@ public class HospitalController {
             if (hospital.getProfilePhotoUrl() != null && !hospital.getProfilePhotoUrl().isEmpty()) {
                 try {
                     fileStorageService.deleteFile(hospital.getProfilePhotoUrl());
+                    logger.debug("DELETE /api/hospital/{}/photo - Deleted photo from storage", id);
                 } catch (Exception e) {
-                    System.err.println("Failed to delete profile photo from storage: " + e.getMessage());
+                    logger.warn("DELETE /api/hospital/{}/photo - Failed to delete profile photo from storage: {}", id, e.getMessage());
                 }
             }
             
             // Remove the profile photo URL from the hospital
             HospitalDTO updatedHospital = hospitalService.updateProfilePhoto(id, null);
+            logger.info("DELETE /api/hospital/{}/photo - Successfully removed profile photo", id);
 
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
@@ -445,6 +505,7 @@ public class HospitalController {
                     )
             );
         } catch (Exception e) {
+            logger.error("DELETE /api/hospital/{}/photo - Error removing photo: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,

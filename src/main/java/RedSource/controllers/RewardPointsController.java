@@ -26,11 +26,15 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api/reward-points")
 @RequiredArgsConstructor
 public class RewardPointsController {
+
+    private static final Logger logger = LoggerFactory.getLogger(RewardPointsController.class);
 
     public static final String REWARD_POINTS = "Reward Points";
     public static final String REWARD_POINTS_PLURAL = "Reward Points";
@@ -45,27 +49,43 @@ public class RewardPointsController {
 
     @GetMapping
     public ResponseEntity<?> getAll() {
+        logger.debug("GET /api/reward-points - Retrieving all reward points");
+        try {
+            var rewardPoints = rewardPointsService.getAll();
+            logger.info("GET /api/reward-points - Successfully retrieved {} reward points records", rewardPoints.size());
         return ResponseEntity.ok(
                 ResponseUtils.buildSuccessResponse(
                         HttpStatus.OK,
                         MessageUtils.retrieveSuccess(REWARD_POINTS_PLURAL),
-                                                rewardPointsService.getAll()));
+                            rewardPoints));
+        } catch (Exception e) {
+            logger.error("GET /api/reward-points - Error retrieving reward points: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(@PathVariable String id) {
+        logger.debug("GET /api/reward-points/{} - Retrieving reward points by ID", id);
+        try {
         RewardPoints rewardPoints = rewardPointsService.getById(id);
         if (rewardPoints == null) {
+                logger.warn("GET /api/reward-points/{} - Reward points not found", id);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.NOT_FOUND,
                                                         "Reward points not found"));
         }
+            logger.info("GET /api/reward-points/{} - Successfully retrieved reward points", id);
         return ResponseEntity.ok(
                 ResponseUtils.buildSuccessResponse(
                         HttpStatus.OK,
                         MessageUtils.retrieveSuccess(REWARD_POINTS),
                                                 rewardPoints));
+        } catch (Exception e) {
+            logger.error("GET /api/reward-points/{} - Error retrieving reward points: {}", id, e.getMessage(), e);
+            throw e;
+        }
     }
 
     @PostMapping
@@ -76,12 +96,19 @@ public class RewardPointsController {
                             HttpStatus.BAD_REQUEST,
                                                         MessageUtils.validationErrors(bindingResult)));
         }
+        logger.debug("POST /api/reward-points - Creating new reward points record");
+        try {
         RewardPoints savedRewardPoints = rewardPointsService.save(rewardPoints);
-        return ResponseEntity.ok(
+            logger.info("POST /api/reward-points - Successfully created reward points record (ID: {})", savedRewardPoints.getId());
+            return ResponseEntity.status(HttpStatus.CREATED).body(
                 ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
+                            HttpStatus.CREATED,
                         MessageUtils.saveSuccess(REWARD_POINTS),
                                                 savedRewardPoints));
+        } catch (Exception e) {
+            logger.error("POST /api/reward-points - Error creating reward points record: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     @PutMapping("/{id}")
@@ -93,34 +120,59 @@ public class RewardPointsController {
                             HttpStatus.BAD_REQUEST,
                                                         MessageUtils.validationErrors(bindingResult)));
         }
+        logger.debug("PUT /api/reward-points/{} - Updating reward points", id);
         try {
             RewardPoints updatedRewardPoints = rewardPointsService.update(id, rewardPoints);
+            if (updatedRewardPoints == null) {
+                logger.warn("PUT /api/reward-points/{} - Reward points not found", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.NOT_FOUND,
+                                "Reward points not found"));
+            }
+            logger.info("PUT /api/reward-points/{} - Successfully updated reward points", id);
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
                             MessageUtils.updateSuccess(REWARD_POINTS),
                                                         updatedRewardPoints));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                    ResponseUtils.buildErrorResponse(
-                            HttpStatus.NOT_FOUND,
-                                                        e.getMessage()));
+            String message = e.getMessage().toLowerCase();
+            HttpStatus status = (message.contains("not found") || message.contains("does not exist")) 
+                    ? HttpStatus.NOT_FOUND 
+                    : HttpStatus.INTERNAL_SERVER_ERROR;
+            if (status == HttpStatus.NOT_FOUND) {
+                logger.warn("PUT /api/reward-points/{} - Update failed (not found): {}", id, e.getMessage());
+            } else {
+                logger.error("PUT /api/reward-points/{} - Error updating reward points: {}", id, e.getMessage(), e);
+            }
+            return ResponseEntity.status(status).body(
+                    ResponseUtils.buildErrorResponse(status, e.getMessage()));
         }
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable String id) {
+        logger.debug("DELETE /api/reward-points/{} - Deleting reward points", id);
         try {
             rewardPointsService.delete(id);
+            logger.info("DELETE /api/reward-points/{} - Successfully deleted reward points", id);
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
                                                         MessageUtils.deleteSuccess(REWARD_POINTS)));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                    ResponseUtils.buildErrorResponse(
-                            HttpStatus.NOT_FOUND,
-                                                        e.getMessage()));
+            String message = e.getMessage().toLowerCase();
+            HttpStatus status = (message.contains("not found") || message.contains("does not exist")) 
+                    ? HttpStatus.NOT_FOUND 
+                    : HttpStatus.INTERNAL_SERVER_ERROR;
+            if (status == HttpStatus.NOT_FOUND) {
+                logger.warn("DELETE /api/reward-points/{} - Delete failed (not found): {}", id, e.getMessage());
+            } else {
+                logger.error("DELETE /api/reward-points/{} - Error deleting reward points: {}", id, e.getMessage(), e);
+            }
+            return ResponseEntity.status(status).body(
+                    ResponseUtils.buildErrorResponse(status, e.getMessage()));
         }
     }
 
@@ -149,10 +201,12 @@ public class RewardPointsController {
                             "Donor reward points summary retrieved successfully",
                                                         summary));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                    ResponseUtils.buildErrorResponse(
-                            HttpStatus.NOT_FOUND,
-                                                        e.getMessage()));
+            String message = e.getMessage().toLowerCase();
+            HttpStatus status = (message.contains("not found") || message.contains("does not exist")) 
+                    ? HttpStatus.NOT_FOUND 
+                    : HttpStatus.INTERNAL_SERVER_ERROR;
+            return ResponseEntity.status(status).body(
+                    ResponseUtils.buildErrorResponse(status, e.getMessage()));
         }
     }
 
@@ -169,10 +223,12 @@ public class RewardPointsController {
                             "Point history retrieved successfully",
                                                         history));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    ResponseUtils.buildErrorResponse(
-                            HttpStatus.INTERNAL_SERVER_ERROR,
-                                                        e.getMessage()));
+            String message = e.getMessage().toLowerCase();
+            HttpStatus status = (message.contains("not found") || message.contains("does not exist")) 
+                    ? HttpStatus.NOT_FOUND 
+                    : HttpStatus.INTERNAL_SERVER_ERROR;
+            return ResponseEntity.status(status).body(
+                    ResponseUtils.buildErrorResponse(status, e.getMessage()));
         }
     }
 
@@ -518,10 +574,12 @@ public class RewardPointsController {
          */
         @GetMapping("/hospital/vouchers/validate/{voucherCode}")
         public ResponseEntity<?> validateMedicalServiceVoucher(@PathVariable String voucherCode) {
+                logger.debug("GET /api/reward-points/hospital/vouchers/validate/{} - Validating voucher code", voucherCode);
                 try {
                         RewardRedemption voucher = rewardPointsManagementService.validateVoucherCodeForHospital(voucherCode);
 
                         if (voucher == null) {
+                                logger.warn("GET /api/reward-points/hospital/vouchers/validate/{} - Invalid voucher code", voucherCode);
                                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                                                 ResponseUtils.buildErrorResponse(
                                                                 HttpStatus.NOT_FOUND,
@@ -546,12 +604,15 @@ public class RewardPointsController {
                         response.put("isValid", "PENDING".equals(voucher.getStatus())
                                         || "PROCESSING".equals(voucher.getStatus()));
 
+                        logger.info("GET /api/reward-points/hospital/vouchers/validate/{} - Voucher validated successfully: {} (Status: {})", 
+                                voucherCode, voucher.getVoucherCode(), voucher.getStatus());
                         return ResponseEntity.ok(
                                         ResponseUtils.buildSuccessResponse(
                                                         HttpStatus.OK,
                                                         "Voucher validated successfully",
                                                         response));
                 } catch (Exception e) {
+                        logger.error("GET /api/reward-points/hospital/vouchers/validate/{} - Error validating voucher: {}", voucherCode, e.getMessage(), e);
                         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                                         ResponseUtils.buildErrorResponse(
                                                         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -566,12 +627,14 @@ public class RewardPointsController {
         public ResponseEntity<?> updateMedicalServiceVoucherStatus(
                         @PathVariable String voucherId,
                         @RequestBody Map<String, String> request) {
+                logger.debug("POST /api/reward-points/hospital/vouchers/{}/update-status - Updating voucher status", voucherId);
                 try {
                         String status = request.get("status");
                         String hospitalId = request.get("hospitalId");
                         String notes = request.get("notes");
 
                         if (status == null || status.isEmpty()) {
+                                logger.warn("POST /api/reward-points/hospital/vouchers/{}/update-status - Status is required", voucherId);
                                 return ResponseEntity.badRequest().body(
                                                 ResponseUtils.buildErrorResponse(
                                                                 HttpStatus.BAD_REQUEST,
@@ -603,7 +666,7 @@ public class RewardPointsController {
                                                         voucher.setHospitalAcceptedDate(new Date());
                                                 }
                                         } catch (Exception e) {
-                                                System.err.println("Error fetching hospital info: " + e.getMessage());
+                                                logger.warn("Error fetching hospital info for hospitalId {}: {}", hospitalId, e.getMessage());
                                         }
 
                                         voucher.setNotes((notes != null ? notes : "") + " [Validated by Hospital ID: "
@@ -612,17 +675,21 @@ public class RewardPointsController {
                                 }
                         }
 
+                        logger.info("POST /api/reward-points/hospital/vouchers/{}/update-status - Voucher status updated successfully: {} -> {}", 
+                                voucherId, voucher.getVoucherCode(), status);
                         return ResponseEntity.ok(
                                         ResponseUtils.buildSuccessResponse(
                                                         HttpStatus.OK,
                                                         "Voucher status updated successfully",
                                                         voucher));
         } catch (RuntimeException e) {
+            logger.warn("POST /api/reward-points/hospital/vouchers/{}/update-status - Bad request: {}", voucherId, e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.BAD_REQUEST,
                                                         e.getMessage()));
         } catch (Exception e) {
+            logger.error("POST /api/reward-points/hospital/vouchers/{}/update-status - Error updating voucher status: {}", voucherId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -638,9 +705,11 @@ public class RewardPointsController {
         @GetMapping("/hospital/{hospitalId}/validations")
         @PreAuthorize("hasRole('HOSPITAL')")
         public ResponseEntity<?> getHospitalValidationHistory(@PathVariable String hospitalId) {
+                logger.debug("GET /api/reward-points/hospital/{}/validations - Retrieving hospital validation history", hospitalId);
                 try {
                         // Validate hospital ID
                         if (hospitalId == null || hospitalId.trim().isEmpty()) {
+                                logger.warn("GET /api/reward-points/hospital/{}/validations - Hospital ID is required", hospitalId);
                                 return ResponseEntity.badRequest().body(
                                                 ResponseUtils.buildErrorResponse(
                                                                 HttpStatus.BAD_REQUEST,
@@ -684,12 +753,15 @@ public class RewardPointsController {
                                 return enriched;
                         }).toList();
 
+                        logger.info("GET /api/reward-points/hospital/{}/validations - Successfully retrieved {} validation records", 
+                                hospitalId, enrichedValidations.size());
                         return ResponseEntity.ok(
                                         ResponseUtils.buildSuccessResponse(
                                                         HttpStatus.OK,
                                                         "Hospital validation history retrieved successfully",
                                                         enrichedValidations));
                 } catch (Exception e) {
+                        logger.error("GET /api/reward-points/hospital/{}/validations - Error retrieving validation history: {}", hospitalId, e.getMessage(), e);
                         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                                         ResponseUtils.buildErrorResponse(
                                                         HttpStatus.INTERNAL_SERVER_ERROR,

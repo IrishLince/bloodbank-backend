@@ -1,0 +1,65 @@
+spring.application.name=RedSource
+
+# JWT Properties
+redsource.app.jwtSecret=${JWT_SECRET:8Zz5tw0Ionm3XPZZfN0NOml3z9FMfmpgXwovR9fp6ryDIoGRM8EPHYC5wgvQqeSA}
+redsource.app.jwtExpirationMs=${JWT_EXPIRATION_MS:3600000}
+redsource.app.refreshTokenExpirationMs=${REFRESH_TOKEN_EXPIRATION_MS:604800000}
+
+# CORS Configuration
+app.cors.allowed-origins=${CORS_ALLOWED_ORIGINS:http://localhost:3000,https://bloodbank-frontend-production.up.railway.app,https://bloodbank-frontend-production-*.up.railway.app}
+
+# MongoDB Configuration - Use MongoDB Atlas URI
+spring.data.mongodb.uri=${MONGODB_URI:mongodb+srv://bloodbank-admin:kHtYPU4TiXKfGISW@bloodbank-cluster.dihafhl.mongodb.net/bloodbank?retryWrites=true&w=majority&appName=bloodbank-cluster}
+# Fallback for Railway deployment issues
+spring.data.mongodb.database=${MONGODB_DATABASE:bloodbank}
+spring.data.mongodb.auto-index-creation=true
+# Allow app to start even if MongoDB is not available initially
+spring.data.mongodb.connect-timeout=5000
+spring.data.mongodb.socket-timeout=5000
+# MongoDB health checks removed - no longer using Spring Boot Actuator
+
+# Cloudinary Configuration
+# Using CLOUDINARY_URL environment variable for configuration
+# Falls back to dev Cloudinary URL if not set
+cloudinary.url=${CLOUDINARY_URL:cloudinary://572446363317284:vvLE60Ak90BWeZagz_fcGvJg_IY@dvexoyowm}
+
+# Debug MongoDB connection
+logging.level.org.springframework.data.mongodb=DEBUG
+logging.level.com.mongodb=DEBUG
+logging.level.RedSource.services.TokenService=DEBUG
+logging.level.RedSource.controllers.AuthController=DEBUG
+
+# Server Configuration
+server.port=8080
+server.address=0.0.0.0
+
+# Logging Configuration
+logging.level.org.springframework.data.mongodb.core.MongoTemplate=INFO
+logging.level.org.springframework.data.mongodb.repository=INFO
+logging.level.bloodbank=DEBUG
+logging.level.org.springframework.boot.autoconfigure=INFO
+logging.level.org.springframework.context=INFO
+
+# Semaphore SMS API Configuration
+semaphore.sms.api.key=${SEMAPHORE_SMS_API_KEY:522b00976c7fc7d4a87bf34914961ce8}
+semaphore.sms.api.url=${SEMAPHORE_SMS_API_URL:https://api.semaphore.co/api/v4/otp}
+semaphore.sms.sender.name=${SEMAPHORE_SMS_SENDER_NAME:Redsource}
+
+
+
+# OTP Configuration
+otp.expiration.minutes=${OTP_EXPIRATION_MINUTES:5}
+otp.length=${OTP_LENGTH:6}
+
+# SMS Configuration
+sms.testing.mode=${SMS_TESTING_MODE:true}
+
+# File Upload Configuration
+spring.servlet.multipart.max-file-size=${MAX_FILE_SIZE:5MB}
+spring.servlet.multipart.max-request-size=${MAX_REQUEST_SIZE:6MB}
+
+# Upload directory
+
+file.upload-dir=${UPLOAD_DIR:uploads}
+
+# Spring Boot Actuator removed - no management endpoints needed

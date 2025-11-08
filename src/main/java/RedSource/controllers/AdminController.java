@@ -21,11 +21,15 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api/admin")
 @CrossOrigin(origins = "*")
 public class AdminController {
+
+    private static final Logger logger = LoggerFactory.getLogger(AdminController.class);
 
     @Autowired
     private UserRepository userRepository;
@@ -49,6 +53,7 @@ public class AdminController {
     public ResponseEntity<?> registerHospital(
             @RequestPart("data") String hospitalDataJson,
             @RequestPart(value = "photo", required = false) MultipartFile photo) {
+        logger.debug("POST /api/admin/register-hospital - Registering new hospital");
         try {
             // Parse JSON data
             ObjectMapper objectMapper = new ObjectMapper();
@@ -67,6 +72,7 @@ public class AdminController {
 
             // Validate required fields
             if (email == null || password == null || hospitalName == null || licenseNumber == null) {
+                logger.warn("POST /api/admin/register-hospital - Missing required fields");
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.BAD_REQUEST,
@@ -77,6 +83,7 @@ public class AdminController {
 
             // Check if email already exists in User collection (for cross-collection uniqueness)
             if (userRepository.findByEmail(email).isPresent()) {
+                logger.warn("POST /api/admin/register-hospital - Email already exists in users collection: {}", email);
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.CONFLICT,
@@ -87,6 +94,7 @@ public class AdminController {
 
             // Check if email already exists in Hospital collection
             if (hospitalRepository.findByEmail(email).isPresent()) {
+                logger.warn("POST /api/admin/register-hospital - Email already exists as a hospital: {}", email);
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.CONFLICT,
@@ -97,6 +105,7 @@ public class AdminController {
 
             // Check if email already exists in BloodBankUser collection (for cross-collection uniqueness)
             if (bloodBankUserRepository.findByEmail(email).isPresent()) {
+                logger.warn("POST /api/admin/register-hospital - Email already exists as a blood bank: {}", email);
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.CONFLICT,
@@ -118,7 +127,7 @@ public class AdminController {
                         photoUrl = fileStorageService.storeUserPhoto(photo);
                     } catch (Exception ex) {
                         // If photo upload fails, proceed without photo
-                        System.err.println("Failed to upload hospital profile photo: " + ex.getMessage());
+                        logger.warn("Failed to upload hospital profile photo: {}", ex.getMessage());
                         photoUrl = null;
                     }
                 }
@@ -144,15 +153,19 @@ public class AdminController {
                 Hospital hospital = hospitalBuilder.build();
 
                 savedHospital = hospitalRepository.save(hospital);
+                logger.info("POST /api/admin/register-hospital - Successfully registered hospital: {} (ID: {})", 
+                        hospitalName, savedHospital.getId());
             } catch (org.springframework.dao.DuplicateKeyException e) {
                 // If registration fails, clean up uploaded photo
                 if (photoUrl != null) {
                     try {
                         fileStorageService.deleteFile(photoUrl);
+                        logger.debug("POST /api/admin/register-hospital - Cleaned up photo after duplicate key error");
                     } catch (Exception deleteEx) {
-                        System.err.println("Failed to clean up photo after registration error: " + deleteEx.getMessage());
+                        logger.warn("Failed to clean up photo after registration error: {}", deleteEx.getMessage());
                     }
                 }
+                logger.warn("POST /api/admin/register-hospital - Duplicate key error: {}", e.getMessage());
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.CONFLICT,
@@ -182,6 +195,7 @@ public class AdminController {
             // If any error occurs and photo was uploaded, clean it up
             // Note: photoUrl is scoped within the try block, so we can't access it here
             // The photo cleanup is handled in the DuplicateKeyException catch block above
+            logger.error("POST /api/admin/register-hospital - Error registering hospital: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -199,6 +213,7 @@ public class AdminController {
             @RequestPart("data") String bloodBankDataJson,
             @RequestPart(value = "photo", required = false) MultipartFile photo,
             @RequestPart(value = "coverImage", required = false) MultipartFile coverImage) {
+        logger.debug("POST /api/admin/register-bloodbank - Registering new blood bank");
         try {
             // Parse JSON data
             ObjectMapper objectMapper = new ObjectMapper();
@@ -222,6 +237,7 @@ public class AdminController {
 
             // Validate required fields
             if (email == null || password == null || bloodBankName == null || licenseNumber == null) {
+                logger.warn("POST /api/admin/register-bloodbank - Missing required fields");
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.BAD_REQUEST,
@@ -232,6 +248,7 @@ public class AdminController {
 
             // Check if email already exists in User collection (for cross-collection uniqueness)
             if (userRepository.findByEmail(email).isPresent()) {
+                logger.warn("POST /api/admin/register-bloodbank - Email already exists in users collection: {}", email);
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.CONFLICT,
@@ -242,6 +259,7 @@ public class AdminController {
 
             // Check if email already exists in Hospital collection (for cross-collection uniqueness)
             if (hospitalRepository.findByEmail(email).isPresent()) {
+                logger.warn("POST /api/admin/register-bloodbank - Email already exists as a hospital: {}", email);
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.CONFLICT,
@@ -252,6 +270,7 @@ public class AdminController {
 
             // Check if email already exists in BloodBankUser collection
             if (bloodBankUserRepository.findByEmail(email).isPresent()) {
+                logger.warn("POST /api/admin/register-bloodbank - Email already exists as a blood bank: {}", email);
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.CONFLICT,
@@ -274,7 +293,7 @@ public class AdminController {
                         photoUrl = fileStorageService.storeUserPhoto(photo);
                     } catch (Exception ex) {
                         // If photo upload fails, proceed without photo
-                        System.err.println("Failed to upload blood bank profile photo: " + ex.getMessage());
+                        logger.warn("Failed to upload blood bank profile photo: {}", ex.getMessage());
                         photoUrl = null;
                     }
                 }
@@ -285,7 +304,7 @@ public class AdminController {
                         coverImageUrl = fileStorageService.storeUserPhoto(coverImage);
                     } catch (Exception ex) {
                         // If cover image upload fails, proceed without cover image
-                        System.err.println("Failed to upload blood bank cover image: " + ex.getMessage());
+                        logger.warn("Failed to upload blood bank cover image: {}", ex.getMessage());
                         coverImageUrl = null;
                     }
                 }
@@ -321,14 +340,14 @@ public class AdminController {
                     try {
                         fileStorageService.deleteFile(photoUrl);
                     } catch (Exception deleteEx) {
-                        System.err.println("Failed to clean up photo after registration error: " + deleteEx.getMessage());
+                        logger.warn("Failed to clean up photo after registration error: {}", deleteEx.getMessage());
                     }
                 }
                 if (coverImageUrl != null) {
                     try {
                         fileStorageService.deleteFile(coverImageUrl);
                     } catch (Exception deleteEx) {
-                        System.err.println("Failed to clean up cover image after registration error: " + deleteEx.getMessage());
+                        logger.warn("Failed to clean up cover image after registration error: {}", deleteEx.getMessage());
                     }
                 }
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(
@@ -348,6 +367,8 @@ public class AdminController {
             response.put("bloodBankName", savedBloodBank.getBloodBankName());
             response.put("role", "BLOODBANK");
 
+            logger.info("POST /api/admin/register-bloodbank - Blood bank registered successfully: {} (ID: {})", 
+                    savedBloodBank.getBloodBankName(), savedBloodBank.getId());
             return ResponseEntity.status(HttpStatus.CREATED).body(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.CREATED,
@@ -357,6 +378,7 @@ public class AdminController {
             );
 
         } catch (Exception e) {
+            logger.error("POST /api/admin/register-bloodbank - Failed to register blood bank: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -371,8 +393,10 @@ public class AdminController {
      */
     @GetMapping("/hospitals")
     public ResponseEntity<?> getAllHospitals() {
+        logger.debug("GET /api/admin/hospitals - Retrieving all hospitals");
         try {
             List<Hospital> hospitals = hospitalRepository.findAll();
+            logger.info("GET /api/admin/hospitals - Successfully retrieved {} hospitals", hospitals.size());
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -381,6 +405,7 @@ public class AdminController {
                     )
             );
         } catch (Exception e) {
+            logger.error("GET /api/admin/hospitals - Failed to retrieve hospitals: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -395,8 +420,10 @@ public class AdminController {
      */
     @GetMapping("/bloodbanks")
     public ResponseEntity<?> getAllBloodBanks() {
+        logger.debug("GET /api/admin/bloodbanks - Retrieving all blood banks");
         try {
             List<BloodBankUser> bloodBanks = bloodBankUserRepository.findAll();
+            logger.info("GET /api/admin/bloodbanks - Successfully retrieved {} blood banks", bloodBanks.size());
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -405,6 +432,7 @@ public class AdminController {
                     )
             );
         } catch (Exception e) {
+            logger.error("GET /api/admin/bloodbanks - Failed to retrieve blood banks: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -419,10 +447,12 @@ public class AdminController {
      */
     @PutMapping("/hospitals/{id}")
     public ResponseEntity<?> updateHospital(@PathVariable String id, @RequestBody Map<String, Object> hospitalData) {
+        logger.debug("PUT /api/admin/hospitals/{} - Updating hospital", id);
         try {
             // Find existing hospital
             Hospital hospital = hospitalRepository.findById(id).orElse(null);
             if (hospital == null) {
+                logger.warn("PUT /api/admin/hospitals/{} - Hospital not found", id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.NOT_FOUND,
@@ -457,6 +487,7 @@ public class AdminController {
             hospital.setUpdatedAt(new Date());
             Hospital updatedHospital = hospitalRepository.save(hospital);
 
+            logger.info("PUT /api/admin/hospitals/{} - Hospital updated successfully: {}", id, updatedHospital.getHospitalName());
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -465,6 +496,7 @@ public class AdminController {
                     )
             );
         } catch (Exception e) {
+            logger.error("PUT /api/admin/hospitals/{} - Failed to update hospital: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -479,10 +511,12 @@ public class AdminController {
      */
     @PutMapping("/bloodbanks/{id}")
     public ResponseEntity<?> updateBloodBank(@PathVariable String id, @RequestBody Map<String, Object> bloodBankData) {
+        logger.debug("PUT /api/admin/bloodbanks/{} - Updating blood bank", id);
         try {
             // Find existing blood bank
             BloodBankUser bloodBank = bloodBankUserRepository.findById(id).orElse(null);
             if (bloodBank == null) {
+                logger.warn("PUT /api/admin/bloodbanks/{} - Blood bank not found", id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.NOT_FOUND,
@@ -517,23 +551,21 @@ public class AdminController {
                 String closingTime = (String) bloodBankData.get("closingTime");
                 String newOperatingHours = constructOperatingHours(operatingDays, openingTime, closingTime);
                 
-                // DEBUG: Backend update logging (can be removed in production)
-                System.out.println("🔧 BACKEND UPDATE - Operating hours: " + newOperatingHours);
-                
+                // Update operating hours
+                logger.debug("Updating operating hours: {}", newOperatingHours);
                 bloodBank.setOperatingHours(newOperatingHours);
                 
             } else if (bloodBankData.containsKey("operatingHours")) {
                 // Fallback to direct operating hours string (legacy format)
                 String directHours = (String) bloodBankData.get("operatingHours");
-                System.out.println("🔧 BACKEND UPDATE - Direct hours: " + directHours);
+                logger.debug("Updating operating hours (direct): {}", directHours);
                 bloodBank.setOperatingHours(directHours);
             }
 
             bloodBank.setUpdatedAt(new Date());
             BloodBankUser updatedBloodBank = bloodBankUserRepository.save(bloodBank);
-
-            // DEBUG: Confirm save operation (can be removed in production)
-            System.out.println("✅ Blood bank updated: " + updatedBloodBank.getBloodBankName() + " | Hours: " + updatedBloodBank.getOperatingHours());
+            logger.info("PUT /api/admin/bloodbanks/{} - Blood bank updated successfully: {} | Hours: {}", 
+                    id, updatedBloodBank.getBloodBankName(), updatedBloodBank.getOperatingHours());
 
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
@@ -543,6 +575,7 @@ public class AdminController {
                     )
             );
         } catch (Exception e) {
+            logger.error("PUT /api/admin/bloodbanks/{} - Failed to update blood bank: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -557,6 +590,7 @@ public class AdminController {
      */
     @GetMapping("/dashboard-stats")
     public ResponseEntity<?> getDashboardStats() {
+        logger.debug("GET /api/admin/dashboard-stats - Retrieving dashboard statistics");
         try {
             long totalHospitals = hospitalRepository.count();
             long totalBloodBanks = bloodBankUserRepository.count();
@@ -569,6 +603,8 @@ public class AdminController {
             stats.put("totalDonors", totalDonors);
             stats.put("totalUsers", totalUsers);
 
+            logger.info("GET /api/admin/dashboard-stats - Successfully retrieved dashboard statistics: Hospitals={}, BloodBanks={}, Donors={}, Users={}", 
+                    totalHospitals, totalBloodBanks, totalDonors, totalUsers);
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -577,6 +613,7 @@ public class AdminController {
                     )
             );
         } catch (Exception e) {
+            logger.error("GET /api/admin/dashboard-stats - Failed to retrieve dashboard statistics: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -693,7 +730,7 @@ public class AdminController {
             }
         } catch (NumberFormatException e) {
             // Log error and return default
-            System.err.println("Could not parse time format: " + time + ". Using default 09:00");
+            logger.warn("Could not parse time format: {}. Using default 09:00", time);
         }
         
         return "09:00"; // Fallback default

@@ -29,55 +29,87 @@ public class AppointmentController {
 
     @GetMapping
     public ResponseEntity<?> getAll() {
-        return ResponseEntity.ok(
-                ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
-                        MessageUtils.retrieveSuccess(APPOINTMENTS),
-                        appointmentService.getAll()
-                )
-        );
+        log.debug("GET /api/appointment - Retrieving all appointments");
+        try {
+            var appointments = appointmentService.getAll();
+            log.info("GET /api/appointment - Successfully retrieved {} appointments", appointments.size());
+            return ResponseEntity.ok(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.OK,
+                            MessageUtils.retrieveSuccess(APPOINTMENTS),
+                            appointments
+                    )
+            );
+        } catch (Exception e) {
+            log.error("GET /api/appointment - Error retrieving appointments: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     @GetMapping("/user/{userId}")
     public ResponseEntity<?> getByUserId(@PathVariable String userId) {
-        return ResponseEntity.ok(
-                ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
-                        MessageUtils.retrieveSuccess(APPOINTMENTS),
-                        appointmentService.getByUserId(userId)
-                )
-        );
+        log.debug("GET /api/appointment/user/{} - Retrieving appointments by user ID", userId);
+        try {
+            var appointments = appointmentService.getByUserId(userId);
+            log.info("GET /api/appointment/user/{} - Successfully retrieved {} appointments", userId, appointments.size());
+            return ResponseEntity.ok(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.OK,
+                            MessageUtils.retrieveSuccess(APPOINTMENTS),
+                            appointments
+                    )
+            );
+        } catch (Exception e) {
+            log.error("GET /api/appointment/user/{} - Error retrieving appointments: {}", userId, e.getMessage(), e);
+            throw e;
+        }
     }
 
     @GetMapping("/bloodbank/{bloodBankId}")
     public ResponseEntity<?> getByBloodBankId(@PathVariable String bloodBankId) {
-        return ResponseEntity.ok(
-                ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
-                        MessageUtils.retrieveSuccess(APPOINTMENTS),
-                        appointmentService.getByBloodBankId(bloodBankId)
-                )
-        );
+        log.debug("GET /api/appointment/bloodbank/{} - Retrieving appointments by blood bank ID", bloodBankId);
+        try {
+            var appointments = appointmentService.getByBloodBankId(bloodBankId);
+            log.info("GET /api/appointment/bloodbank/{} - Successfully retrieved {} appointments", bloodBankId, appointments.size());
+            return ResponseEntity.ok(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.OK,
+                            MessageUtils.retrieveSuccess(APPOINTMENTS),
+                            appointments
+                    )
+            );
+        } catch (Exception e) {
+            log.error("GET /api/appointment/bloodbank/{} - Error retrieving appointments: {}", bloodBankId, e.getMessage(), e);
+            throw e;
+        }
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(@PathVariable String id) {
-        Appointment appointment = appointmentService.getById(id);
-        if (appointment == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                    ResponseUtils.buildErrorResponse(
-                            HttpStatus.NOT_FOUND,
-                            "Appointment not found"
+        log.debug("GET /api/appointment/{} - Retrieving appointment by ID", id);
+        try {
+            Appointment appointment = appointmentService.getById(id);
+            if (appointment == null) {
+                log.warn("GET /api/appointment/{} - Appointment not found", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.NOT_FOUND,
+                                "Appointment not found"
+                        )
+                );
+            }
+            log.info("GET /api/appointment/{} - Successfully retrieved appointment", id);
+            return ResponseEntity.ok(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.OK,
+                            MessageUtils.retrieveSuccess(APPOINTMENT),
+                            appointment
                     )
             );
+        } catch (Exception e) {
+            log.error("GET /api/appointment/{} - Error retrieving appointment: {}", id, e.getMessage(), e);
+            throw e;
         }
-        return ResponseEntity.ok(
-                ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
-                        MessageUtils.retrieveSuccess(APPOINTMENT),
-                        appointment
-                )
-        );
     }
 
     @PostMapping
@@ -120,9 +152,9 @@ public class AppointmentController {
             
             Appointment savedAppointment = appointmentService.save(appointment);
             log.info("Appointment created successfully with ID: {}", savedAppointment.getId());
-            return ResponseEntity.ok(
+            return ResponseEntity.status(HttpStatus.CREATED).body(
                     ResponseUtils.buildSuccessResponse(
-                            HttpStatus.OK,
+                            HttpStatus.CREATED,
                             MessageUtils.saveSuccess(APPOINTMENT),
                             savedAppointment
                     )
@@ -150,6 +182,14 @@ public class AppointmentController {
         }
         try {
             Appointment updatedAppointment = appointmentService.update(id, appointment);
+            if (updatedAppointment == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.NOT_FOUND,
+                                "Appointment not found"
+                        )
+                );
+            }
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -158,11 +198,12 @@ public class AppointmentController {
                     )
             );
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                    ResponseUtils.buildErrorResponse(
-                            HttpStatus.NOT_FOUND,
-                            e.getMessage()
-                    )
+            String message = e.getMessage().toLowerCase();
+            HttpStatus status = (message.contains("not found") || message.contains("does not exist")) 
+                    ? HttpStatus.NOT_FOUND 
+                    : HttpStatus.INTERNAL_SERVER_ERROR;
+            return ResponseEntity.status(status).body(
+                    ResponseUtils.buildErrorResponse(status, e.getMessage())
             );
         }
     }
@@ -181,6 +222,14 @@ public class AppointmentController {
             }
             
             Appointment updatedAppointment = appointmentService.updateStatus(id, newStatus);
+            if (updatedAppointment == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.NOT_FOUND,
+                                "Appointment not found"
+                        )
+                );
+            }
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -189,11 +238,12 @@ public class AppointmentController {
                     )
             );
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                    ResponseUtils.buildErrorResponse(
-                            HttpStatus.NOT_FOUND,
-                            e.getMessage()
-                    )
+            String message = e.getMessage().toLowerCase();
+            HttpStatus status = (message.contains("not found") || message.contains("does not exist")) 
+                    ? HttpStatus.NOT_FOUND 
+                    : HttpStatus.INTERNAL_SERVER_ERROR;
+            return ResponseEntity.status(status).body(
+                    ResponseUtils.buildErrorResponse(status, e.getMessage())
             );
         }
     }
@@ -209,11 +259,12 @@ public class AppointmentController {
                     )
             );
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                    ResponseUtils.buildErrorResponse(
-                            HttpStatus.NOT_FOUND,
-                            e.getMessage()
-                    )
+            String message = e.getMessage().toLowerCase();
+            HttpStatus status = (message.contains("not found") || message.contains("does not exist")) 
+                    ? HttpStatus.NOT_FOUND 
+                    : HttpStatus.INTERNAL_SERVER_ERROR;
+            return ResponseEntity.status(status).body(
+                    ResponseUtils.buildErrorResponse(status, e.getMessage())
             );
         }
     }

@@ -1,6 +1,7 @@
 package RedSource.controllers;
 
 import RedSource.entities.HospitalRequest;
+import RedSource.entities.utils.ResponseUtils;
 import RedSource.exceptions.ServiceException;
 import RedSource.services.HospitalRequestService;
 import lombok.RequiredArgsConstructor;
@@ -25,55 +26,104 @@ public class HospitalRequestController {
     private final HospitalRequestService hospitalRequestService;
 
     @GetMapping
-    public ResponseEntity<List<HospitalRequest>> getAll() {
+    public ResponseEntity<?> getAll() {
+        log.debug("GET /api/hospital-requests - Retrieving all hospital requests");
         try {
             List<HospitalRequest> requests = hospitalRequestService.getAll();
+            log.info("GET /api/hospital-requests - Successfully retrieved {} hospital requests", requests.size());
             return ResponseEntity.ok(requests);
         } catch (ServiceException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            log.error("GET /api/hospital-requests - Error retrieving hospital requests: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage())
+            );
         }
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<HospitalRequest> getById(@PathVariable String id) {
+    public ResponseEntity<?> getById(@PathVariable String id) {
+        log.debug("GET /api/hospital-requests/{} - Retrieving hospital request by ID", id);
         try {
             HospitalRequest request = hospitalRequestService.getById(id);
             if (request == null) {
-                return ResponseEntity.notFound().build();
+                log.warn("GET /api/hospital-requests/{} - Hospital request not found", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(HttpStatus.NOT_FOUND, "Hospital request not found")
+                );
             }
+            log.info("GET /api/hospital-requests/{} - Successfully retrieved hospital request", id);
             return ResponseEntity.ok(request);
         } catch (ServiceException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            String message = e.getMessage().toLowerCase();
+            if (message.contains("not found") || message.contains("does not exist")) {
+                log.warn("GET /api/hospital-requests/{} - Hospital request not found: {}", id, e.getMessage());
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(HttpStatus.NOT_FOUND, e.getMessage())
+                );
+            }
+            log.error("GET /api/hospital-requests/{} - Error retrieving hospital request: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage())
+            );
         }
     }
 
     @PostMapping
-    public ResponseEntity<HospitalRequest> save(@RequestBody HospitalRequest request) {
+    public ResponseEntity<?> save(@RequestBody HospitalRequest request) {
+        log.debug("POST /api/hospital-requests - Creating new hospital request");
         try {
             HospitalRequest savedRequest = hospitalRequestService.save(request);
+            log.info("POST /api/hospital-requests - Successfully created hospital request (ID: {})", savedRequest.getId());
             return ResponseEntity.status(HttpStatus.CREATED).body(savedRequest);
         } catch (ServiceException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            String message = e.getMessage().toLowerCase();
+            if (message.contains("not found") || message.contains("does not exist")) {
+                log.warn("POST /api/hospital-requests - Creation failed (not found): {}", e.getMessage());
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(HttpStatus.NOT_FOUND, e.getMessage())
+                );
+            }
+            log.error("POST /api/hospital-requests - Error creating hospital request: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage())
+            );
         }
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<HospitalRequest> update(@PathVariable String id, @RequestBody HospitalRequest request) {
+    public ResponseEntity<?> update(@PathVariable String id, @RequestBody HospitalRequest request) {
+        log.debug("PUT /api/hospital-requests/{} - Updating hospital request", id);
         try {
             HospitalRequest updatedRequest = hospitalRequestService.update(id, request);
             if (updatedRequest == null) {
-                return ResponseEntity.notFound().build();
+                log.warn("PUT /api/hospital-requests/{} - Hospital request not found", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(HttpStatus.NOT_FOUND, "Hospital request not found")
+                );
             }
+            log.info("PUT /api/hospital-requests/{} - Successfully updated hospital request", id);
             return ResponseEntity.ok(updatedRequest);
         } catch (ServiceException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            String message = e.getMessage().toLowerCase();
+            if (message.contains("not found") || message.contains("does not exist")) {
+                log.warn("PUT /api/hospital-requests/{} - Update failed (not found): {}", id, e.getMessage());
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(HttpStatus.NOT_FOUND, e.getMessage())
+                );
+            }
+            log.error("PUT /api/hospital-requests/{} - Error updating hospital request: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage())
+            );
         }
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable String id) {
+        log.debug("DELETE /api/hospital-requests/{} - Deleting hospital request", id);
         try {
             hospitalRequestService.delete(id);
+            log.info("DELETE /api/hospital-requests/{} - Successfully deleted hospital request", id);
 
             // Create a HashMap instead of Map.of() for more flexibility
             HashMap<String, Object> response = new HashMap<>();
@@ -84,6 +134,7 @@ public class HospitalRequestController {
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            log.error("DELETE /api/hospital-requests/{} - Error deleting hospital request: {}", id, e.getMessage(), e);
             // Create a HashMap instead of Map.of() for more flexibility
             HashMap<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
@@ -95,24 +146,26 @@ public class HospitalRequestController {
     }
 
     @GetMapping("/hospital/{hospitalId}")
-    public ResponseEntity<List<HospitalRequest>> getByHospitalId(@PathVariable String hospitalId) {
+    public ResponseEntity<?> getByHospitalId(@PathVariable String hospitalId) {
+        log.debug("GET /api/hospital-requests/hospital/{} - Retrieving hospital requests by hospital ID", hospitalId);
         try {
-            log.info("Received request for hospitalId: {}", hospitalId);
             List<HospitalRequest> requests = hospitalRequestService.findByHospitalId(hospitalId);
-            log.info("Found {} requests for hospitalId: {}", requests.size(), hospitalId);
+            log.info("GET /api/hospital-requests/hospital/{} - Found {} requests for hospital", hospitalId, requests.size());
             return ResponseEntity.ok(requests);
         } catch (ServiceException e) {
-            log.error("Error fetching requests for hospitalId: {}", hospitalId, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            log.error("GET /api/hospital-requests/hospital/{} - Error fetching requests: {}", hospitalId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage())
+            );
         }
     }
 
     @GetMapping("/bloodbank/{bloodBankId}")
     public ResponseEntity<?> getByBloodBankId(@PathVariable String bloodBankId) {
+        log.debug("GET /api/hospital-requests/bloodbank/{} - Retrieving hospital requests by blood bank ID", bloodBankId);
         try {
-            log.info("Received request for bloodBankId: {}", bloodBankId);
             List<HospitalRequest> requests = hospitalRequestService.findByBloodBankId(bloodBankId);
-            log.info("Found {} requests for bloodBankId: {}", requests.size(), bloodBankId);
+            log.info("GET /api/hospital-requests/bloodbank/{} - Found {} requests for blood bank", bloodBankId, requests.size());
             
             // Create response in the expected format
             HashMap<String, Object> response = new HashMap<>();
@@ -148,7 +201,9 @@ public class HospitalRequestController {
             
             HospitalRequest request = hospitalRequestService.getById(id);
             if (request == null) {
-                return ResponseEntity.notFound().build();
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(HttpStatus.NOT_FOUND, "Hospital request not found")
+                );
             }
             
             request.setStatus(newStatus);
@@ -163,12 +218,13 @@ public class HospitalRequestController {
             return ResponseEntity.ok(response);
         } catch (ServiceException e) {
             log.error("Error updating status for request: {}", id, e);
-            
-            HashMap<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("status", false);
-            errorResponse.put("message", "Failed to update status: " + e.getMessage());
-            
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            String message = e.getMessage().toLowerCase();
+            HttpStatus status = (message.contains("not found") || message.contains("does not exist")) 
+                    ? HttpStatus.NOT_FOUND 
+                    : HttpStatus.INTERNAL_SERVER_ERROR;
+            return ResponseEntity.status(status).body(
+                    ResponseUtils.buildErrorResponse(status, e.getMessage())
+            );
         }
     }
 }

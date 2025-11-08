@@ -8,11 +8,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api/bloodbanks")
 @CrossOrigin(origins = "*", allowedHeaders = "*")
 public class BloodBankDonationController {
+
+    private static final Logger logger = LoggerFactory.getLogger(BloodBankDonationController.class);
 
     @Autowired
     private BloodBankUserRepository bloodBankUserRepository;
@@ -20,21 +24,19 @@ public class BloodBankDonationController {
     // Get all blood bank users as donation centers
     @GetMapping("/donation-centers")
     public ResponseEntity<List<BloodBankUser>> getAllDonationCenters() {
+        logger.debug("GET /api/bloodbanks/donation-centers - Retrieving all donation centers");
         try {
             List<BloodBankUser> bloodBanks = bloodBankUserRepository.findAll();
-            
-            // DEBUG: Enhanced API response logging
-            System.out.println("📍 DONATION CENTERS API - Returning " + bloodBanks.size() + " blood banks");
-            System.out.println("🏥 Blood Bank Names:");
-            for (int i = 0; i < bloodBanks.size(); i++) {
-                BloodBankUser bb = bloodBanks.get(i);
-                System.out.println("  " + (i+1) + ". " + bb.getBloodBankName() + " (ID: " + bb.getId() + ")");
+            logger.info("GET /api/bloodbanks/donation-centers - Successfully retrieved {} donation centers", bloodBanks.size());
+            if (logger.isDebugEnabled()) {
+                for (int i = 0; i < bloodBanks.size(); i++) {
+                    BloodBankUser bb = bloodBanks.get(i);
+                    logger.debug("  {}. {} (ID: {})", i+1, bb.getBloodBankName(), bb.getId());
+                }
             }
-            
             return ResponseEntity.ok(bloodBanks);
         } catch (Exception e) {
-            System.err.println("❌ ERROR in donation-centers API: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("GET /api/bloodbanks/donation-centers - Error retrieving donation centers: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -43,9 +45,12 @@ public class BloodBankDonationController {
     @GetMapping("/debug/count")
     @CrossOrigin(origins = "*", allowCredentials = "false")
     public ResponseEntity<String> getBloodBankCount() {
+        logger.debug("GET /api/bloodbanks/debug/count - Retrieving blood bank count");
         try {
             long count = bloodBankUserRepository.count();
             List<BloodBankUser> allBanks = bloodBankUserRepository.findAll();
+            
+            logger.info("GET /api/bloodbanks/debug/count - Total count: {}, Retrieved: {}", count, allBanks.size());
             
             StringBuilder response = new StringBuilder();
             response.append("📊 BLOOD BANK DATABASE DEBUG:\n");
@@ -59,11 +64,10 @@ public class BloodBankDonationController {
                     i+1, bb.getBloodBankName(), bb.getId(), bb.getEmail()));
             }
             
-            System.out.println(response.toString());
             return ResponseEntity.ok(response.toString());
         } catch (Exception e) {
+            logger.error("GET /api/bloodbanks/debug/count - Error retrieving blood bank count: {}", e.getMessage(), e);
             String error = "❌ ERROR in debug count: " + e.getMessage();
-            System.err.println(error);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
@@ -74,11 +78,14 @@ public class BloodBankDonationController {
             @RequestParam Double lat,
             @RequestParam Double lng,
             @RequestParam(defaultValue = "50") Double radius) {
+        logger.debug("GET /api/bloodbanks/nearby - Retrieving nearby blood banks (lat: {}, lng: {}, radius: {})", lat, lng, radius);
         try {
             // For now, return all blood banks (we'll add coordinate filtering later)
             List<BloodBankUser> bloodBanks = bloodBankUserRepository.findAll();
+            logger.info("GET /api/bloodbanks/nearby - Successfully retrieved {} nearby blood banks", bloodBanks.size());
             return ResponseEntity.ok(bloodBanks);
         } catch (Exception e) {
+            logger.error("GET /api/bloodbanks/nearby - Error retrieving nearby blood banks: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -86,6 +93,7 @@ public class BloodBankDonationController {
     // Search blood banks by name or address
     @GetMapping("/search")
     public ResponseEntity<List<BloodBankUser>> searchBloodBanks(@RequestParam String q) {
+        logger.debug("GET /api/bloodbanks/search - Searching blood banks with query: {}", q);
         try {
             List<BloodBankUser> byName = bloodBankUserRepository.findByBloodBankNameContainingIgnoreCase(q);
             List<BloodBankUser> byAddress = bloodBankUserRepository.findByAddressContainingIgnoreCase(q);
@@ -94,8 +102,10 @@ public class BloodBankDonationController {
             byName.addAll(byAddress);
             List<BloodBankUser> uniqueBloodBanks = byName.stream().distinct().toList();
 
+            logger.info("GET /api/bloodbanks/search - Found {} blood banks matching query: {}", uniqueBloodBanks.size(), q);
             return ResponseEntity.ok(uniqueBloodBanks);
         } catch (Exception e) {
+            logger.error("GET /api/bloodbanks/search - Error searching blood banks: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

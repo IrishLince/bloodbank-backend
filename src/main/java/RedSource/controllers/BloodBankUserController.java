@@ -20,11 +20,15 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api/bloodbank-users")
 @RequiredArgsConstructor
 public class BloodBankUserController {
+
+    private static final Logger logger = LoggerFactory.getLogger(BloodBankUserController.class);
 
     public static final String BLOOD_BANK_USER = "Blood Bank User";
     public static final String BLOOD_BANK_USERS = "Blood Bank Users";
@@ -38,6 +42,7 @@ public class BloodBankUserController {
     @GetMapping
     @PreAuthorize("hasRole('HOSPITAL') or hasRole('ADMIN') or hasRole('DONOR')")
     public ResponseEntity<?> getAll() {
+        logger.debug("GET /api/bloodbank-users - Retrieving all blood bank users");
         try {
             List<BloodBankUser> bloodBankUsers = bloodBankUserService.getAll();
             
@@ -72,7 +77,8 @@ public class BloodBankUserController {
                     return source;
                 })
                 .toList();
-                
+            
+            logger.info("GET /api/bloodbank-users - Successfully retrieved {} blood bank users", bloodSources.size());
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -81,6 +87,7 @@ public class BloodBankUserController {
                     )
             );
         } catch (Exception e) {
+            logger.error("GET /api/bloodbank-users - Error fetching blood bank users: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -94,9 +101,11 @@ public class BloodBankUserController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('BLOODBANK') or hasRole('ADMIN') or hasRole('HOSPITAL')")
     public ResponseEntity<?> getById(@PathVariable String id) {
+        logger.debug("GET /api/bloodbank-users/{} - Retrieving blood bank user by ID", id);
         try {
             BloodBankUser bloodBankUser = bloodBankUserService.getById(id);
             if (bloodBankUser == null) {
+                logger.warn("GET /api/bloodbank-users/{} - Blood bank user not found", id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.NOT_FOUND,
@@ -104,6 +113,7 @@ public class BloodBankUserController {
                         )
                 );
             }
+            logger.info("GET /api/bloodbank-users/{} - Successfully retrieved blood bank user: {}", id, bloodBankUser.getBloodBankName());
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -112,6 +122,7 @@ public class BloodBankUserController {
                     )
             );
         } catch (Exception e) {
+            logger.error("GET /api/bloodbank-users/{} - Error fetching blood bank user: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -125,7 +136,9 @@ public class BloodBankUserController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('BLOODBANK') or hasRole('ADMIN')")
     public ResponseEntity<?> update(@PathVariable String id, @Valid @RequestBody BloodBankUser bloodBankUser, BindingResult result) {
+        logger.debug("PUT /api/bloodbank-users/{} - Updating blood bank user profile", id);
         if (result.hasErrors()) {
+            logger.warn("PUT /api/bloodbank-users/{} - Validation errors: {}", id, result.getAllErrors());
             return ResponseEntity.badRequest().body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.BAD_REQUEST,
@@ -136,6 +149,7 @@ public class BloodBankUserController {
 
         try {
             BloodBankUser updatedBloodBankUser = bloodBankUserService.update(id, bloodBankUser);
+            logger.info("PUT /api/bloodbank-users/{} - Successfully updated blood bank user: {}", id, updatedBloodBankUser.getBloodBankName());
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -144,6 +158,7 @@ public class BloodBankUserController {
                     )
             );
         } catch (Exception e) {
+            logger.error("PUT /api/bloodbank-users/{} - Error updating blood bank user: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -157,8 +172,10 @@ public class BloodBankUserController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> delete(@PathVariable String id) {
+        logger.debug("DELETE /api/bloodbank-users/{} - Deleting blood bank user", id);
         try {
             bloodBankUserService.deleteById(id);
+            logger.info("DELETE /api/bloodbank-users/{} - Successfully deleted blood bank user", id);
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -167,6 +184,7 @@ public class BloodBankUserController {
                     )
             );
         } catch (Exception e) {
+            logger.error("DELETE /api/bloodbank-users/{} - Error deleting blood bank user: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -180,9 +198,11 @@ public class BloodBankUserController {
     @PutMapping("/{id}/preferred-bloodtypes")
     @PreAuthorize("hasRole('BLOODBANK') or hasRole('ADMIN')")
     public ResponseEntity<?> updatePreferredBloodTypes(@PathVariable String id, @RequestBody Map<String, List<String>> request) {
+        logger.debug("PUT /api/bloodbank-users/{}/preferred-bloodtypes - Updating preferred blood types", id);
         try {
             List<String> preferredBloodTypes = request.get("preferredBloodTypes");
             if (preferredBloodTypes == null) {
+                logger.warn("PUT /api/bloodbank-users/{}/preferred-bloodtypes - Missing preferredBloodTypes in request body", id);
                 return ResponseEntity.badRequest().body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.BAD_REQUEST,
@@ -192,6 +212,7 @@ public class BloodBankUserController {
             }
 
             BloodBankUser updatedBloodBankUser = bloodBankUserService.updatePreferredBloodTypes(id, preferredBloodTypes);
+            logger.info("PUT /api/bloodbank-users/{}/preferred-bloodtypes - Successfully updated preferred blood types", id);
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -200,6 +221,7 @@ public class BloodBankUserController {
                     )
             );
         } catch (Exception e) {
+            logger.error("PUT /api/bloodbank-users/{}/preferred-bloodtypes - Error updating preferred blood types: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -215,10 +237,12 @@ public class BloodBankUserController {
     public ResponseEntity<?> uploadProfilePhoto(
             @PathVariable String id,
             @RequestParam("photo") MultipartFile photo) {
+        logger.debug("POST /api/bloodbank-users/{}/upload-profile-photo - Uploading profile photo (size: {} bytes)", id, photo.getSize());
         try {
             // Find blood bank user
             BloodBankUser bloodBankUser = bloodBankUserService.getById(id);
             if (bloodBankUser == null) {
+                logger.warn("POST /api/bloodbank-users/{}/upload-profile-photo - Blood bank user not found", id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.NOT_FOUND,
@@ -232,7 +256,7 @@ public class BloodBankUserController {
                 try {
                     fileStorageService.deleteFile(bloodBankUser.getProfilePhotoUrl());
                 } catch (Exception e) {
-                    System.err.println("Failed to delete old profile photo: " + e.getMessage());
+                    logger.warn("Failed to delete old profile photo: {}", e.getMessage());
                 }
             }
             
@@ -243,6 +267,7 @@ public class BloodBankUserController {
             bloodBankUser.setProfilePhotoUrl(photoUrl);
             bloodBankUser.setUpdatedAt(new Date());
             BloodBankUser updatedBloodBankUser = bloodBankUserService.update(id, bloodBankUser);
+            logger.info("POST /api/bloodbank-users/{}/upload-profile-photo - Successfully uploaded profile photo", id);
 
             // Return response with photo URL
             Map<String, Object> response = new HashMap<>();
@@ -257,6 +282,7 @@ public class BloodBankUserController {
                     )
             );
         } catch (Exception e) {
+            logger.error("POST /api/bloodbank-users/{}/upload-profile-photo - Error uploading profile photo: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -270,10 +296,12 @@ public class BloodBankUserController {
     @DeleteMapping("/{id}/profile-photo")
     @PreAuthorize("hasRole('BLOODBANK') or hasRole('ADMIN')")
     public ResponseEntity<?> removeProfilePhoto(@PathVariable String id) {
+        logger.debug("DELETE /api/bloodbank-users/{}/profile-photo - Removing profile photo", id);
         try {
             // Find blood bank user
             BloodBankUser bloodBankUser = bloodBankUserService.getById(id);
             if (bloodBankUser == null) {
+                logger.warn("DELETE /api/bloodbank-users/{}/profile-photo - Blood bank user not found", id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.NOT_FOUND,
@@ -287,7 +315,7 @@ public class BloodBankUserController {
                 try {
                     fileStorageService.deleteFile(bloodBankUser.getProfilePhotoUrl());
                 } catch (Exception e) {
-                    System.err.println("Failed to delete profile photo from storage: " + e.getMessage());
+                    logger.warn("Failed to delete profile photo from storage: {}", e.getMessage());
                 }
             }
             
@@ -295,6 +323,7 @@ public class BloodBankUserController {
             bloodBankUser.setProfilePhotoUrl(null);
             bloodBankUser.setUpdatedAt(new Date());
             BloodBankUser updatedBloodBankUser = bloodBankUserService.update(id, bloodBankUser);
+            logger.info("DELETE /api/bloodbank-users/{}/profile-photo - Successfully removed profile photo", id);
 
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
@@ -304,6 +333,7 @@ public class BloodBankUserController {
                     )
             );
         } catch (Exception e) {
+            logger.error("DELETE /api/bloodbank-users/{}/profile-photo - Error removing profile photo: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -319,10 +349,12 @@ public class BloodBankUserController {
     public ResponseEntity<?> uploadCoverImage(
             @PathVariable String id,
             @RequestParam("coverImage") MultipartFile coverImage) {
+        logger.debug("POST /api/bloodbank-users/{}/upload-cover-image - Uploading cover image (size: {} bytes)", id, coverImage.getSize());
         try {
             // Find blood bank user
             BloodBankUser bloodBankUser = bloodBankUserService.getById(id);
             if (bloodBankUser == null) {
+                logger.warn("POST /api/bloodbank-users/{}/upload-cover-image - Blood bank user not found", id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.NOT_FOUND,
@@ -336,7 +368,7 @@ public class BloodBankUserController {
                 try {
                     fileStorageService.deleteFile(bloodBankUser.getCoverImageUrl());
                 } catch (Exception e) {
-                    System.err.println("Failed to delete old cover image: " + e.getMessage());
+                    logger.warn("Failed to delete old cover image: {}", e.getMessage());
                 }
             }
             
@@ -347,6 +379,7 @@ public class BloodBankUserController {
             bloodBankUser.setCoverImageUrl(coverImageUrl);
             bloodBankUser.setUpdatedAt(new Date());
             BloodBankUser updatedBloodBankUser = bloodBankUserService.update(id, bloodBankUser);
+            logger.info("POST /api/bloodbank-users/{}/upload-cover-image - Successfully uploaded cover image", id);
 
             // Return response with cover image URL
             Map<String, Object> response = new HashMap<>();
@@ -361,6 +394,7 @@ public class BloodBankUserController {
                     )
             );
         } catch (Exception e) {
+            logger.error("POST /api/bloodbank-users/{}/upload-cover-image - Error uploading cover image: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -374,10 +408,12 @@ public class BloodBankUserController {
     @DeleteMapping("/{id}/cover-image")
     @PreAuthorize("hasRole('BLOODBANK') or hasRole('ADMIN')")
     public ResponseEntity<?> removeCoverImage(@PathVariable String id) {
+        logger.debug("DELETE /api/bloodbank-users/{}/cover-image - Removing cover image", id);
         try {
             // Find blood bank user
             BloodBankUser bloodBankUser = bloodBankUserService.getById(id);
             if (bloodBankUser == null) {
+                logger.warn("DELETE /api/bloodbank-users/{}/cover-image - Blood bank user not found", id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.NOT_FOUND,
@@ -391,7 +427,7 @@ public class BloodBankUserController {
                 try {
                     fileStorageService.deleteFile(bloodBankUser.getCoverImageUrl());
                 } catch (Exception e) {
-                    System.err.println("Failed to delete cover image from storage: " + e.getMessage());
+                    logger.warn("Failed to delete cover image from storage: {}", e.getMessage());
                 }
             }
             

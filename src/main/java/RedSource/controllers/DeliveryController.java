@@ -31,55 +31,104 @@ public class DeliveryController {
     private final HospitalRequestService hospitalRequestService;
 
     @GetMapping
-    public ResponseEntity<List<Delivery>> getAll() {
+    public ResponseEntity<?> getAll() {
+        log.debug("GET /api/deliveries - Retrieving all deliveries");
         try {
             List<Delivery> deliveries = deliveryService.getAll();
+            log.info("GET /api/deliveries - Successfully retrieved {} deliveries", deliveries.size());
             return ResponseEntity.ok(deliveries);
         } catch (ServiceException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            log.error("GET /api/deliveries - Error retrieving deliveries: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage())
+            );
         }
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Delivery> getById(@PathVariable String id) {
+    public ResponseEntity<?> getById(@PathVariable String id) {
+        log.debug("GET /api/deliveries/{} - Retrieving delivery by ID", id);
         try {
             Delivery delivery = deliveryService.getById(id);
             if (delivery == null) {
-                return ResponseEntity.notFound().build();
+                log.warn("GET /api/deliveries/{} - Delivery not found", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(HttpStatus.NOT_FOUND, "Delivery not found")
+                );
             }
+            log.info("GET /api/deliveries/{} - Successfully retrieved delivery", id);
             return ResponseEntity.ok(delivery);
         } catch (ServiceException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            String message = e.getMessage().toLowerCase();
+            if (message.contains("not found") || message.contains("does not exist")) {
+                log.warn("GET /api/deliveries/{} - Delivery not found: {}", id, e.getMessage());
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(HttpStatus.NOT_FOUND, e.getMessage())
+                );
+            }
+            log.error("GET /api/deliveries/{} - Error retrieving delivery: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage())
+            );
         }
     }
 
     @PostMapping
-    public ResponseEntity<Delivery> save(@RequestBody Delivery delivery) {
+    public ResponseEntity<?> save(@RequestBody Delivery delivery) {
+        log.debug("POST /api/deliveries - Creating new delivery");
         try {
             Delivery savedDelivery = deliveryService.save(delivery);
+            log.info("POST /api/deliveries - Successfully created delivery (ID: {})", savedDelivery.getId());
             return ResponseEntity.status(HttpStatus.CREATED).body(savedDelivery);
         } catch (ServiceException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            String message = e.getMessage().toLowerCase();
+            if (message.contains("not found") || message.contains("does not exist")) {
+                log.warn("POST /api/deliveries - Delivery creation failed (not found): {}", e.getMessage());
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(HttpStatus.NOT_FOUND, e.getMessage())
+                );
+            }
+            log.error("POST /api/deliveries - Error creating delivery: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage())
+            );
         }
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Delivery> update(@PathVariable String id, @RequestBody Delivery delivery) {
+    public ResponseEntity<?> update(@PathVariable String id, @RequestBody Delivery delivery) {
+        log.debug("PUT /api/deliveries/{} - Updating delivery", id);
         try {
             Delivery updatedDelivery = deliveryService.update(id, delivery);
             if (updatedDelivery == null) {
-                return ResponseEntity.notFound().build();
+                log.warn("PUT /api/deliveries/{} - Delivery not found", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(HttpStatus.NOT_FOUND, "Delivery not found")
+                );
             }
+            log.info("PUT /api/deliveries/{} - Successfully updated delivery", id);
             return ResponseEntity.ok(updatedDelivery);
         } catch (ServiceException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            String message = e.getMessage().toLowerCase();
+            if (message.contains("not found") || message.contains("does not exist")) {
+                log.warn("PUT /api/deliveries/{} - Update failed (not found): {}", id, e.getMessage());
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(HttpStatus.NOT_FOUND, e.getMessage())
+                );
+            }
+            log.error("PUT /api/deliveries/{} - Error updating delivery: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage())
+            );
         }
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable String id) {
+        log.debug("DELETE /api/deliveries/{} - Deleting delivery", id);
         try {
             deliveryService.delete(id);
+            log.info("DELETE /api/deliveries/{} - Successfully deleted delivery", id);
             HashMap<String, Object> response = new HashMap<>();
             response.put("status", true);
             response.put("statusCode", 200);
@@ -87,6 +136,7 @@ public class DeliveryController {
             response.put("data", null);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            log.error("DELETE /api/deliveries/{} - Error deleting delivery: {}", id, e.getMessage(), e);
             HashMap<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
             errorResponse.put("message", "Failed to process request: " + e.getMessage());
@@ -95,48 +145,59 @@ public class DeliveryController {
     }
 
     @GetMapping("/request/{requestId}")
-    public ResponseEntity<List<Delivery>> getByRequestId(@PathVariable String requestId) {
+    public ResponseEntity<?> getByRequestId(@PathVariable String requestId) {
         try {
             List<Delivery> deliveries = deliveryService.findByRequestId(requestId);
             return ResponseEntity.ok(deliveries);
         } catch (ServiceException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage())
+            );
         }
     }
 
     @GetMapping("/status/{status}")
-    public ResponseEntity<List<Delivery>> getAllByStatus(@PathVariable String status) {
+    public ResponseEntity<?> getAllByStatus(@PathVariable String status) {
         try {
             List<Delivery> deliveries = deliveryService.findAllByStatus(status);
             return ResponseEntity.ok(deliveries);
         } catch (ServiceException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage())
+            );
         }
     }
 
     @PostMapping("/by-request-ids")
-    public ResponseEntity<List<Delivery>> getDeliveriesByRequestIds(@RequestBody List<String> requestIds) {
+    public ResponseEntity<?> getDeliveriesByRequestIds(@RequestBody List<String> requestIds) {
         try {
             List<Delivery> deliveries = deliveryService.getDeliveriesByRequestIds(requestIds);
             return ResponseEntity.ok(deliveries);
         } catch (ServiceException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage())
+            );
         }
     }
 
     @PutMapping("/{id}/status")
     public ResponseEntity<?> updateDeliveryStatus(@PathVariable String id,
             @RequestBody Map<String, String> statusUpdate) {
+        log.debug("PUT /api/deliveries/{}/status - Updating delivery status", id);
         try {
             String newStatus = statusUpdate.get("status");
             if (newStatus == null || newStatus.trim().isEmpty()) {
+                log.warn("PUT /api/deliveries/{}/status - Status is required", id);
                 return ResponseEntity.badRequest().body(
                         ResponseUtils.buildErrorResponse(HttpStatus.BAD_REQUEST, "Status is required"));
             }
 
             Delivery delivery = deliveryService.getById(id);
             if (delivery == null) {
-                return ResponseEntity.notFound().build();
+                log.warn("PUT /api/deliveries/{}/status - Delivery not found", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(HttpStatus.NOT_FOUND, "Delivery not found")
+                );
             }
 
             // Update status and timestamp
@@ -167,6 +228,7 @@ public class DeliveryController {
             }
 
             Delivery updatedDelivery = deliveryService.update(id, delivery);
+            log.info("PUT /api/deliveries/{}/status - Successfully updated delivery status to {}", id, newStatus);
 
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
@@ -174,22 +236,32 @@ public class DeliveryController {
                             "Delivery status updated successfully",
                             updatedDelivery));
         } catch (ServiceException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    ResponseUtils.buildErrorResponse(
-                            HttpStatus.INTERNAL_SERVER_ERROR,
-                            "Failed to update delivery status: " + e.getMessage()));
+            String message = e.getMessage().toLowerCase();
+            HttpStatus status = (message.contains("not found") || message.contains("does not exist")) 
+                    ? HttpStatus.NOT_FOUND 
+                    : HttpStatus.INTERNAL_SERVER_ERROR;
+            if (status == HttpStatus.NOT_FOUND) {
+                log.warn("PUT /api/deliveries/{}/status - Update failed (not found): {}", id, e.getMessage());
+            } else {
+                log.error("PUT /api/deliveries/{}/status - Error updating delivery status: {}", id, e.getMessage(), e);
+            }
+            return ResponseEntity.status(status).body(
+                    ResponseUtils.buildErrorResponse(status, e.getMessage())
+            );
         }
     }
 
     @GetMapping("/search")
-    public ResponseEntity<List<Delivery>> searchDeliveries(
+    public ResponseEntity<?> searchDeliveries(
             @RequestParam(required = false) String searchTerm,
             @RequestParam(required = false) String status) {
         try {
             List<Delivery> deliveries = deliveryService.searchDeliveries(searchTerm, status);
             return ResponseEntity.ok(deliveries);
         } catch (ServiceException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage())
+            );
         }
     }
 
@@ -239,7 +311,7 @@ public class DeliveryController {
     }
 
     @GetMapping("/hospital/{hospitalId}")
-    public ResponseEntity<List<Delivery>> getDeliveriesByHospital(@PathVariable String hospitalId) {
+    public ResponseEntity<?> getDeliveriesByHospital(@PathVariable String hospitalId) {
         try {
             List<Delivery> deliveries = deliveryService.getAll();
 
@@ -255,7 +327,9 @@ public class DeliveryController {
 
             return ResponseEntity.ok(hospitalDeliveries);
         } catch (ServiceException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseUtils.buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage())
+            );
         }
     }
 }

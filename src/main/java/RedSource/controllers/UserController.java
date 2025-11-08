@@ -28,6 +28,8 @@ import java.util.Date;
 import java.text.SimpleDateFormat;
 import java.text.ParseException;
 import java.util.HashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @CrossOrigin(origins = "http://localhost:3000", maxAge = 3600)
 @PreAuthorize("hasRole('DONOR') or hasRole('ADMIN')")
@@ -35,6 +37,8 @@ import java.util.HashMap;
 @RequestMapping("/api/user")
 @RequiredArgsConstructor
 public class UserController {
+
+    private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
     public static final String USER = "User";
     public static final String USERS = "Users";
@@ -48,59 +52,84 @@ public class UserController {
     // Get all users
     @GetMapping
     public ResponseEntity<?> getAll() {
-        List<User> users = userService.getAll();
-        List<UserDTO> userDTOs = users.stream()
-                .map(UserDTO::new)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(
-                ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
-                        MessageUtils.retrieveSuccess(USERS),
-                        userDTOs
-                )
-        );
+        logger.debug("GET /api/user - Retrieving all users");
+        try {
+            List<User> users = userService.getAll();
+            List<UserDTO> userDTOs = users.stream()
+                    .map(UserDTO::new)
+                    .collect(Collectors.toList());
+            logger.info("GET /api/user - Successfully retrieved {} users", users.size());
+            return ResponseEntity.ok(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.OK,
+                            MessageUtils.retrieveSuccess(USERS),
+                            userDTOs
+                    )
+            );
+        } catch (Exception e) {
+            logger.error("GET /api/user - Error retrieving users: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     // Get all users by a specific role (filter)
     @GetMapping("/filter")
     public ResponseEntity<?> getAllByFilter(@RequestParam(required = false) String role) {
+        logger.debug("GET /api/user/filter - Filtering users by role: {}", role);
         if (role == null) {
             return getAll();
         }
-        return ResponseEntity.ok(
-                ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
-                        MessageUtils.retrieveSuccess(USERS),
-                        userService.getAllByFilter(role)
-                )
-        );
+        try {
+            List<User> users = userService.getAllByFilter(role);
+            logger.info("GET /api/user/filter - Successfully retrieved {} users with role: {}", users.size(), role);
+            return ResponseEntity.ok(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.OK,
+                            MessageUtils.retrieveSuccess(USERS),
+                            users
+                    )
+            );
+        } catch (Exception e) {
+            logger.error("GET /api/user/filter - Error filtering users by role {}: {}", role, e.getMessage(), e);
+            throw e;
+        }
     }
 
     // Get user by ID
     @GetMapping("/{id}")
     public ResponseEntity<?> getUserById(@PathVariable String id) {
-        User user = userService.getUserById(id);
-        if (user == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                    ResponseUtils.buildErrorResponse(
-                            HttpStatus.NOT_FOUND,
-                            "User not found"
+        logger.debug("GET /api/user/{} - Retrieving user by ID", id);
+        try {
+            User user = userService.getUserById(id);
+            if (user == null) {
+                logger.warn("GET /api/user/{} - User not found", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseUtils.buildErrorResponse(
+                                HttpStatus.NOT_FOUND,
+                                "User not found"
+                        )
+                );
+            }
+            logger.info("GET /api/user/{} - Successfully retrieved user: {}", id, user.getEmail());
+            return ResponseEntity.ok(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.OK,
+                            MessageUtils.retrieveSuccess(USER),
+                            new UserDTO(user)
                     )
             );
+        } catch (Exception e) {
+            logger.error("GET /api/user/{} - Error retrieving user: {}", id, e.getMessage(), e);
+            throw e;
         }
-        return ResponseEntity.ok(
-                ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
-                        MessageUtils.retrieveSuccess(USER),
-                        new UserDTO(user)
-                )
-        );
     }
 
     // Save a new user
     @PostMapping
     public ResponseEntity<?> save(@Valid @RequestBody UserDTO userDTO, BindingResult bindingResult) {
+        logger.debug("POST /api/user - Creating new user: {}", userDTO.getEmail());
         if (bindingResult.hasErrors()) {
+            logger.warn("POST /api/user - Validation errors: {}", bindingResult.getAllErrors());
             return ResponseEntity.badRequest().body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.BAD_REQUEST,
@@ -108,31 +137,38 @@ public class UserController {
                     )
             );
         }
-        User user = User.builder()
-                .name(userDTO.getName())
-                .email(userDTO.getEmail())
-                .role(userDTO.getRole())
-                .contactInformation(userDTO.getContactInformation())
-                .bloodType(userDTO.getBloodType())
-                .address(userDTO.getAddress())
-                .age(userDTO.getAge())
-                .sex(userDTO.getSex())
-                .dateOfBirth(userDTO.getDateOfBirth())
-                .build();
+        try {
+            User user = User.builder()
+                    .name(userDTO.getName())
+                    .email(userDTO.getEmail())
+                    .role(userDTO.getRole())
+                    .contactInformation(userDTO.getContactInformation())
+                    .bloodType(userDTO.getBloodType())
+                    .address(userDTO.getAddress())
+                    .age(userDTO.getAge())
+                    .sex(userDTO.getSex())
+                    .dateOfBirth(userDTO.getDateOfBirth())
+                    .build();
 
-        User savedUser = userService.save(user);
-        return ResponseEntity.ok(
-                ResponseUtils.buildSuccessResponse(
-                        HttpStatus.OK,
-                        MessageUtils.saveSuccess(userDTO.getRole().name()),
-                        new UserDTO(savedUser)
-                )
-        );
+            User savedUser = userService.save(user);
+            logger.info("POST /api/user - Successfully created user: {} (ID: {})", savedUser.getEmail(), savedUser.getId());
+            return ResponseEntity.status(HttpStatus.CREATED).body(
+                    ResponseUtils.buildSuccessResponse(
+                            HttpStatus.CREATED,
+                            MessageUtils.saveSuccess(userDTO.getRole().name()),
+                            new UserDTO(savedUser)
+                    )
+            );
+        } catch (Exception e) {
+            logger.error("POST /api/user - Error creating user: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     // Update an existing user
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable String id, @RequestBody Map<String, Object> requestBody) {
+        logger.debug("PUT /api/user/{} - Updating user", id);
         try {
             // Extract UserDTO from request body
             UserDTO userDTO = mapToUserDTO(requestBody);
@@ -154,9 +190,9 @@ public class UserController {
                 // Get user's email for OTP verification
                 Optional<User> existingUserOpt = userRepository.findById(id);
                 if (!existingUserOpt.isPresent()) {
-                    return ResponseEntity.badRequest().body(
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                             ResponseUtils.buildErrorResponse(
-                                    HttpStatus.BAD_REQUEST,
+                                    HttpStatus.NOT_FOUND,
                                     "User not found"
                             )
                     );
@@ -206,6 +242,7 @@ public class UserController {
                     .build();
 
             User updatedUser = userService.update(id, user);
+            logger.info("PUT /api/user/{} - Successfully updated user", id);
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -214,6 +251,7 @@ public class UserController {
                     )
             );
         } catch (Exception e) {
+            logger.error("PUT /api/user/{} - Error updating user: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.NOT_FOUND,
@@ -226,8 +264,10 @@ public class UserController {
     // Delete a user
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable String id, @RequestParam(required = false) String role) {
+        logger.debug("DELETE /api/user/{} - Deleting user with role: {}", id, role != null ? role : USER);
         try {
             userService.delete(id, role != null ? role : USER);
+            logger.info("DELETE /api/user/{} - Successfully deleted user", id);
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
                             HttpStatus.OK,
@@ -235,6 +275,7 @@ public class UserController {
                     )
             );
         } catch (Exception e) {
+            logger.error("DELETE /api/user/{} - Error deleting user: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.NOT_FOUND,
@@ -309,7 +350,7 @@ public class UserController {
                     fileStorageService.deleteFile(user.getProfilePhotoUrl());
                 } catch (Exception e) {
                     // Log the error but continue with the upload
-                    System.err.println("Failed to delete old profile photo: " + e.getMessage());
+                    logger.warn("Failed to delete old profile photo for user {}: {}", id, e.getMessage());
                 }
             }
             
@@ -321,6 +362,7 @@ public class UserController {
             user.setUpdatedAt(new Date());
             
             User updatedUser = userRepository.save(user);
+            logger.info("POST /api/user/{}/upload-photo - Successfully uploaded profile photo", id);
 
             // Return response with photo URL
             Map<String, Object> response = new HashMap<>();
@@ -335,6 +377,7 @@ public class UserController {
                     )
             );
         } catch (Exception e) {
+            logger.error("POST /api/user/{}/upload-photo - Error uploading profile photo: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.BAD_REQUEST,
@@ -347,9 +390,11 @@ public class UserController {
     // Get profile photo URL
     @GetMapping("/{id}/photo")
     public ResponseEntity<?> getProfilePhoto(@PathVariable String id) {
+        logger.debug("GET /api/user/{}/photo - Retrieving profile photo URL", id);
         try {
             Optional<User> userOpt = userRepository.findById(id);
             if (!userOpt.isPresent()) {
+                logger.warn("GET /api/user/{}/photo - User not found", id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.NOT_FOUND,
@@ -361,6 +406,7 @@ public class UserController {
             User user = userOpt.get();
             Map<String, String> response = new HashMap<>();
             response.put("profilePhotoUrl", user.getProfilePhotoUrl());
+            logger.debug("GET /api/user/{}/photo - Successfully retrieved profile photo URL", id);
 
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
@@ -370,6 +416,7 @@ public class UserController {
                     )
             );
         } catch (Exception e) {
+            logger.error("GET /api/user/{}/photo - Error retrieving profile photo: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -401,7 +448,7 @@ public class UserController {
                     fileStorageService.deleteFile(user.getProfilePhotoUrl());
                 } catch (Exception e) {
                     // Log the error but continue with the removal
-                    System.err.println("Failed to delete profile photo from storage: " + e.getMessage());
+                    logger.warn("Failed to delete profile photo from storage for user {}: {}", id, e.getMessage());
                 }
             }
             
@@ -430,9 +477,11 @@ public class UserController {
     // Archive user account
     @PutMapping("/{id}/archive")
     public ResponseEntity<?> archiveAccount(@PathVariable String id) {
+        logger.debug("PUT /api/user/{}/archive - Archiving user account", id);
         try {
             User user = userService.getUserById(id);
             if (user == null) {
+                logger.warn("PUT /api/user/{}/archive - User not found", id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.NOT_FOUND,
@@ -445,6 +494,7 @@ public class UserController {
             user.setAccountStatus("ARCHIVED");
             user.setUpdatedAt(new Date());
             User updatedUser = userRepository.save(user);
+            logger.info("PUT /api/user/{}/archive - Successfully archived user account", id);
 
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
@@ -454,6 +504,7 @@ public class UserController {
                     )
             );
         } catch (Exception e) {
+            logger.error("PUT /api/user/{}/archive - Error archiving account: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -466,9 +517,11 @@ public class UserController {
     // Activate user account
     @PutMapping("/{id}/activate")
     public ResponseEntity<?> activateAccount(@PathVariable String id) {
+        logger.debug("PUT /api/user/{}/activate - Activating user account", id);
         try {
             User user = userService.getUserById(id);
             if (user == null) {
+                logger.warn("PUT /api/user/{}/activate - User not found", id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                         ResponseUtils.buildErrorResponse(
                                 HttpStatus.NOT_FOUND,
@@ -481,6 +534,7 @@ public class UserController {
             user.setAccountStatus("ACTIVE");
             user.setUpdatedAt(new Date());
             User updatedUser = userRepository.save(user);
+            logger.info("PUT /api/user/{}/activate - Successfully activated user account", id);
 
             return ResponseEntity.ok(
                     ResponseUtils.buildSuccessResponse(
@@ -490,6 +544,7 @@ public class UserController {
                     )
             );
         } catch (Exception e) {
+            logger.error("PUT /api/user/{}/activate - Error activating account: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ResponseUtils.buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,

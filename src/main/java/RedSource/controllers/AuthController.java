@@ -199,6 +199,7 @@ public class AuthController {
 
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+        logger.debug("POST /api/auth/signin - Authentication attempt for email: {}", loginRequest.getEmail());
         // Get or create a lock for this user's email to prevent concurrent logins
         Object lock = loginLocks.computeIfAbsent(loginRequest.getEmail(), k -> new Object());
 
@@ -230,9 +231,12 @@ public class AuthController {
                     tokenService.saveAccessToken(user, jwt, accessTokenExpirationDate);
                     tokenService.saveRefreshToken(user, refreshToken, refreshTokenExpirationDate);
                 } catch (Exception e) {
+                    logger.error("POST /api/auth/signin - Failed to save authentication tokens for user: {}", loginRequest.getEmail(), e);
                     throw new RuntimeException("Failed to save authentication tokens", e);
                 }
 
+                logger.info("POST /api/auth/signin - Successful authentication for user: {} (ID: {}, Roles: {})", 
+                        userDetails.getEmail(), userDetails.getId(), roles);
                 return ResponseEntity.ok(new JwtResponse(jwt,
                         refreshToken,
                         userDetails.getId(),
@@ -240,6 +244,10 @@ public class AuthController {
                         userDetails.getEmail(),
                         user.getProfilePhotoUrl(),
                         roles));
+            } catch (Exception e) {
+                logger.warn("POST /api/auth/signin - Authentication failed for email: {} - Reason: {}", 
+                        loginRequest.getEmail(), e.getMessage());
+                throw e;
             } finally {
                 // Clean up the lock after processing
                 loginLocks.remove(loginRequest.getEmail());
@@ -249,18 +257,21 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(@Valid @RequestBody TokenRefreshRequest request) {
+        logger.debug("POST /api/auth/refresh - Token refresh request received");
         String requestRefreshToken = request.getRefreshToken();
 
         // Check if refresh token exists and is valid
         if (!tokenService.isTokenValid(requestRefreshToken)) {
+            logger.warn("POST /api/auth/refresh - Invalid refresh token provided");
             return ResponseEntity
-                    .badRequest()
+                    .status(HttpStatus.UNAUTHORIZED)
                     .body(new MessageResponse("Error: Refresh token is not valid!"));
         }
 
         try {
             // Get username from refresh token
             String username = jwtUtils.getUserNameFromJwtToken(requestRefreshToken);
+            logger.debug("POST /api/auth/refresh - Refreshing token for user: {}", username);
 
             // Get user from username using multi-collection logic
             User user = findUserByEmail(username);
@@ -272,8 +283,10 @@ public class AuthController {
             Date accessTokenExpirationDate = jwtUtils.getExpirationDateFromToken(newAccessToken);
             tokenService.saveAccessToken(user, newAccessToken, accessTokenExpirationDate);
 
+            logger.info("POST /api/auth/refresh - Successfully refreshed token for user: {}", username);
             return ResponseEntity.ok(new TokenRefreshResponse(newAccessToken, requestRefreshToken));
         } catch (Exception e) {
+            logger.error("POST /api/auth/refresh - Error refreshing token: {}", e.getMessage(), e);
             return ResponseEntity
                     .status(HttpStatus.FORBIDDEN)
                     .body(new MessageResponse("Error: Could not refresh token"));
@@ -282,14 +295,17 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<?> getCurrentUser(@AuthenticationPrincipal UserDetailsImpl userDetails) {
+        logger.debug("GET /api/auth/me - Retrieving current user profile");
         try {
             if (userDetails == null) {
+                logger.warn("GET /api/auth/me - Unauthorized access attempt (no user details)");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(new MessageResponse("Authentication required"));
             }
 
             // Use the same multi-collection logic as login
             User user = findUserByEmail(userDetails.getUsername());
+            logger.debug("GET /api/auth/me - Retrieved user profile for: {} (Role: {})", user.getEmail(), user.getRole());
 
             // Return user data based on role
             Map<String, Object> response = new HashMap<>();
@@ -349,8 +365,10 @@ public class AuthController {
                 }
             }
 
+            logger.info("GET /api/auth/me - Successfully retrieved user profile for: {}", user.getEmail());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            logger.error("GET /api/auth/me - Error fetching user profile: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error fetching user profile: " + e.getMessage()));
         }
@@ -358,22 +376,28 @@ public class AuthController {
 
     @PostMapping("/check-username")
     public ResponseEntity<?> checkUsername(@RequestBody Map<String, String> request) {
+        logger.debug("POST /api/auth/check-username - Checking username availability");
         try {
             String username = request.get("username");
             if (username == null || username.trim().isEmpty()) {
+                logger.warn("POST /api/auth/check-username - Username check failed: username is required");
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Username is required"));
             }
 
-            if (userRepository.existsByUsername(username)) {
+            boolean exists = userRepository.existsByUsername(username);
+            if (exists) {
+                logger.debug("POST /api/auth/check-username - Username already taken: {}", username);
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Username is already taken"));
             }
 
+            logger.debug("POST /api/auth/check-username - Username is available: {}", username);
             return ResponseEntity.ok(new MessageResponse("Username is available"));
         } catch (Exception e) {
+            logger.error("POST /api/auth/check-username - Error checking username: {}", e.getMessage(), e);
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error checking username: " + e.getMessage()));
@@ -387,22 +411,28 @@ public class AuthController {
         if ("OPTIONS".equals(httpRequest.getMethod())) {
             return ResponseEntity.ok().build();
         }
+        logger.debug("POST /api/auth/check-email - Checking email availability");
         try {
             String email = request.get("email");
             if (email == null || email.trim().isEmpty()) {
+                logger.warn("POST /api/auth/check-email - Email check failed: email is required");
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Email is required"));
             }
 
-            if (userRepository.existsByEmail(email)) {
+            boolean exists = userRepository.existsByEmail(email);
+            if (exists) {
+                logger.debug("POST /api/auth/check-email - Email already in use: {}", email);
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Email is already in use"));
             }
 
+            logger.debug("POST /api/auth/check-email - Email is available: {}", email);
             return ResponseEntity.ok(new MessageResponse("Email is available"));
         } catch (Exception e) {
+            logger.error("POST /api/auth/check-email - Error checking email: {}", e.getMessage(), e);
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error checking email: " + e.getMessage()));
@@ -411,9 +441,11 @@ public class AuthController {
 
     @PostMapping("/check-phone")
     public ResponseEntity<?> checkPhone(@RequestBody Map<String, String> request) {
+        logger.debug("POST /api/auth/check-phone - Checking phone number availability");
         try {
             String phone = request.get("phone");
             if (phone == null || phone.trim().isEmpty()) {
+                logger.warn("POST /api/auth/check-phone - Phone check failed: phone number is required");
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Phone number is required"));
@@ -424,21 +456,26 @@ public class AuthController {
             String shortPhone = getShortPhoneFormat(normalizedPhone);
             
             if (normalizedPhone == null || (!normalizedPhone.matches("^63\\d{10}$"))) {
+                logger.warn("POST /api/auth/check-phone - Invalid phone number format: {}", phone);
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Invalid phone number format. Expected format: 63XXXXXXXXXX"));
             }
 
             // Check both formats to catch all possible duplicates
-            if (userRepository.existsByContactInformation(normalizedPhone) ||
-                    userRepository.existsByContactInformation(shortPhone)) {
+            boolean exists = userRepository.existsByContactInformation(normalizedPhone) ||
+                    userRepository.existsByContactInformation(shortPhone);
+            if (exists) {
+                logger.debug("POST /api/auth/check-phone - Phone number already in use: {}", normalizedPhone);
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Phone number is already in use"));
             }
 
+            logger.debug("POST /api/auth/check-phone - Phone number is available: {}", normalizedPhone);
             return ResponseEntity.ok(new MessageResponse("Phone number is available"));
         } catch (Exception e) {
+            logger.error("POST /api/auth/check-phone - Error checking phone: {}", e.getMessage(), e);
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error checking phone: " + e.getMessage()));
@@ -447,9 +484,11 @@ public class AuthController {
 
     @PostMapping("/send-otp")
     public ResponseEntity<?> sendOTP(@Valid @RequestBody SendOTPRequest request) {
+        logger.debug("POST /api/auth/send-otp - Sending OTP to phone: {}, email: {}", request.getPhoneNumber(), request.getEmail());
         try {
             // Check if email is already in use
             if (userRepository.existsByEmail(request.getEmail())) {
+                logger.warn("POST /api/auth/send-otp - Email already in use: {}", request.getEmail());
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Error: Email is already in use!"));
@@ -462,8 +501,10 @@ public class AuthController {
                     SemaphoreSMSService.OTPType.REGISTRATION,
                     "User" // Use generic name since SendOTPRequest doesn't have firstName
             );
+            logger.info("POST /api/auth/send-otp - Successfully sent OTP to phone: {}", request.getPhoneNumber());
             return ResponseEntity.ok(new MessageResponse(result));
         } catch (Exception e) {
+            logger.error("POST /api/auth/send-otp - Failed to send OTP to phone: {} - Error: {}", request.getPhoneNumber(), e.getMessage(), e);
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Failed to send OTP: " + e.getMessage()));
@@ -472,18 +513,24 @@ public class AuthController {
 
     @PostMapping("/verify-otp")
     public ResponseEntity<?> verifyOTP(@Valid @RequestBody VerifyOTPRequest request) {
+        logger.debug("POST /api/auth/verify-otp - Verifying OTP for phone: {}, email: {}", request.getPhoneNumber(), request.getEmail());
         try {
             OTPVerificationResponse response = otpService.verifyOTP(request.getPhoneNumber(), request.getOtpCode(),
                     request.getEmail());
 
             if (response.isSuccess()) {
+                logger.info("POST /api/auth/verify-otp - OTP verified successfully for phone: {}", request.getPhoneNumber());
                 return ResponseEntity.ok(response);
             } else {
+                logger.warn("POST /api/auth/verify-otp - OTP verification failed for phone: {} - Reason: {}", 
+                        request.getPhoneNumber(), response.getMessage());
                 return ResponseEntity
                         .badRequest()
                         .body(response);
             }
         } catch (Exception e) {
+            logger.error("POST /api/auth/verify-otp - Error verifying OTP for phone: {} - Error: {}", 
+                    request.getPhoneNumber(), e.getMessage(), e);
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("OTP verification failed: " + e.getMessage()));
@@ -492,9 +539,12 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
+        logger.debug("POST /api/auth/signup - Registration attempt for email: {}, username: {}", 
+                signUpRequest.getEmail(), signUpRequest.getUsername());
         try {
             // Check if email is already in use
             if (userRepository.existsByEmail(signUpRequest.getEmail())) {
+                logger.warn("POST /api/auth/signup - Registration failed: Email already in use: {}", signUpRequest.getEmail());
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Error: Email is already in use!"));
@@ -502,6 +552,7 @@ public class AuthController {
 
             // Check if username is already in use
             if (userRepository.existsByUsername(signUpRequest.getUsername())) {
+                logger.warn("POST /api/auth/signup - Registration failed: Username already taken: {}", signUpRequest.getUsername());
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Error: Username is already taken!"));
@@ -533,8 +584,12 @@ public class AuthController {
             String normalizedPhone = normalizePhoneNumber(signUpRequest.getContactInformation());
             otpService.cleanupVerifiedOTP(normalizedPhone, signUpRequest.getEmail());
 
-            return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
+            logger.info("POST /api/auth/signup - User registered successfully: {} (ID: {}, Role: {})", 
+                    signUpRequest.getEmail(), user.getId(), user.getRole());
+            return ResponseEntity.status(HttpStatus.CREATED).body(new MessageResponse("User registered successfully!"));
         } catch (Exception e) {
+            logger.error("POST /api/auth/signup - Registration failed for email: {} - Error: {}", 
+                    signUpRequest.getEmail(), e.getMessage(), e);
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Registration failed: " + e.getMessage()));
@@ -545,12 +600,15 @@ public class AuthController {
     public ResponseEntity<?> registerUserWithPhoto(
             @RequestPart("data") @Valid SignupRequest signUpRequest,
             @RequestPart(value = "photo", required = false) MultipartFile photo) {
+        logger.debug("POST /api/auth/signup (with photo) - Registration attempt for email: {}, username: {}, photo provided: {}", 
+                signUpRequest.getEmail(), signUpRequest.getUsername(), photo != null && !photo.isEmpty());
         try {
             // Normalize phone for OTP check and persistence using utility method
             String normalizedPhone = normalizePhoneNumber(signUpRequest.getContactInformation());
 
             // Check if email is already in use
             if (userRepository.existsByEmail(signUpRequest.getEmail())) {
+                logger.warn("POST /api/auth/signup (with photo) - Registration failed: Email already in use: {}", signUpRequest.getEmail());
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Error: Email is already in use!"));
@@ -558,6 +616,7 @@ public class AuthController {
 
             // Check if username is already in use
             if (userRepository.existsByUsername(signUpRequest.getUsername())) {
+                logger.warn("POST /api/auth/signup (with photo) - Registration failed: Username already taken: {}", signUpRequest.getUsername());
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Error: Username is already taken!"));
@@ -595,7 +654,7 @@ public class AuthController {
                             fileStorageService.deleteFile(photoUrl);
                         } catch (Exception deleteEx) {
                             // Log the error but continue with registration
-                            System.err.println("Failed to clean up photo after upload error: " + deleteEx.getMessage());
+                            logger.warn("Failed to clean up photo after upload error: {}", deleteEx.getMessage());
                         }
                     }
                     // Proceed without photo if there's an error
@@ -606,20 +665,24 @@ public class AuthController {
             try {
                 userRepository.save(user);
                 otpService.cleanupVerifiedOTP(normalizedPhone, signUpRequest.getEmail());
-                return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
+                logger.info("POST /api/auth/signup (with photo) - User registered successfully: {} (ID: {}, Role: {}, Photo: {})", 
+                        signUpRequest.getEmail(), user.getId(), user.getRole(), photoUrl != null ? "uploaded" : "none");
+                return ResponseEntity.status(HttpStatus.CREATED).body(new MessageResponse("User registered successfully!"));
             } catch (Exception e) {
                 // If user registration fails, clean up the uploaded photo
                 if (photoUrl != null) {
                     try {
                         fileStorageService.deleteFile(photoUrl);
+                        logger.debug("POST /api/auth/signup (with photo) - Cleaned up photo after registration error");
                     } catch (Exception deleteEx) {
-                        System.err
-                                .println("Failed to clean up photo after registration error: " + deleteEx.getMessage());
+                        logger.warn("Failed to clean up photo after registration error: {}", deleteEx.getMessage());
                     }
                 }
                 throw e;
             }
         } catch (Exception e) {
+            logger.error("POST /api/auth/signup (with photo) - Registration failed for email: {} - Error: {}", 
+                    signUpRequest.getEmail(), e.getMessage(), e);
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error: " + e.getMessage()));
@@ -628,18 +691,19 @@ public class AuthController {
 
     @PostMapping("/send-password-otp")
     public ResponseEntity<?> sendPasswordOTP(@RequestBody Map<String, String> request) {
+        logger.debug("POST /api/auth/send-password-otp - Password change OTP request");
         try {
 
             String email = request.get("email");
             String phone = request.get("phone");
 
             if (email == null || email.trim().isEmpty()) {
-
+                logger.warn("POST /api/auth/send-password-otp - Email is required");
                 return ResponseEntity.badRequest().body(new MessageResponse("Email is required"));
             }
 
             if (phone == null || phone.trim().isEmpty()) {
-
+                logger.warn("POST /api/auth/send-password-otp - Phone number is required");
                 return ResponseEntity.badRequest().body(new MessageResponse("Phone number is required"));
             }
 
@@ -647,13 +711,14 @@ public class AuthController {
 
             Optional<User> userOptional = userRepository.findByEmail(email);
             if (!userOptional.isPresent()) {
-
-                return ResponseEntity.badRequest().body(new MessageResponse("User not found"));
+                logger.warn("POST /api/auth/send-password-otp - User not found: {}", email);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("User not found"));
             }
 
             User user = userOptional.get();
 
             if (!phone.equals(user.getContactInformation())) {
+                logger.warn("POST /api/auth/send-password-otp - Phone number does not match for user: {}", email);
                 return ResponseEntity.badRequest().body(new MessageResponse("Phone number does not match"));
             }
 
@@ -667,8 +732,10 @@ public class AuthController {
                     SemaphoreSMSService.OTPType.CHANGE_PASSWORD,
                     "User");
 
+            logger.info("POST /api/auth/send-password-otp - Password change OTP sent successfully to: {}", email);
             return ResponseEntity.ok(new MessageResponse(result));
         } catch (Exception e) {
+            logger.error("POST /api/auth/send-password-otp - Error sending password change OTP: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error sending OTP: " + e.getMessage()));
         }
@@ -676,6 +743,7 @@ public class AuthController {
 
     @PostMapping("/change-password")
     public ResponseEntity<?> changePassword(@RequestBody Map<String, String> request) {
+        logger.debug("POST /api/auth/change-password - Password change request for email: {}", request.get("email"));
         try {
             String email = request.get("email");
             String phone = request.get("phone");
@@ -685,26 +753,32 @@ public class AuthController {
 
             // Validate input
             if (email == null || email.trim().isEmpty()) {
+                logger.warn("POST /api/auth/change-password - Email is required");
                 return ResponseEntity.badRequest().body(new MessageResponse("Email is required"));
             }
 
             if (phone == null || phone.trim().isEmpty()) {
+                logger.warn("POST /api/auth/change-password - Phone number is required");
                 return ResponseEntity.badRequest().body(new MessageResponse("Phone number is required"));
             }
 
             if (otpCode == null || otpCode.trim().isEmpty()) {
+                logger.warn("POST /api/auth/change-password - OTP code is required");
                 return ResponseEntity.badRequest().body(new MessageResponse("OTP code is required"));
             }
 
             if (oldPassword == null || oldPassword.trim().isEmpty()) {
+                logger.warn("POST /api/auth/change-password - Current password is required");
                 return ResponseEntity.badRequest().body(new MessageResponse("Current password is required"));
             }
 
             if (newPassword == null || newPassword.trim().isEmpty()) {
+                logger.warn("POST /api/auth/change-password - New password is required");
                 return ResponseEntity.badRequest().body(new MessageResponse("New password is required"));
             }
 
             if (newPassword.length() < 8) {
+                logger.warn("POST /api/auth/change-password - New password too short");
                 return ResponseEntity.badRequest()
                         .body(new MessageResponse("New password must be at least 8 characters long"));
             }
@@ -715,24 +789,28 @@ public class AuthController {
             OTPVerificationResponse otpResult = otpService.verifyOTP(smsPhone, otpCode, email); // Use same format as
                                                                                                 // SMS sending
             if (!otpResult.isSuccess()) {
+                logger.warn("POST /api/auth/change-password - OTP verification failed for user: {}", email);
                 return ResponseEntity.badRequest().body(new MessageResponse(otpResult.getMessage()));
             }
 
             // Find user
             Optional<User> userOptional = userRepository.findByEmail(email);
             if (!userOptional.isPresent()) {
-                return ResponseEntity.badRequest().body(new MessageResponse("User not found"));
+                logger.warn("POST /api/auth/change-password - User not found: {}", email);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("User not found"));
             }
 
             User user = userOptional.get();
 
             // Verify current password
             if (!encoder.matches(oldPassword, user.getPassword())) {
+                logger.warn("POST /api/auth/change-password - Current password incorrect for user: {}", email);
                 return ResponseEntity.badRequest().body(new MessageResponse("Current password is incorrect"));
             }
 
             // SECURITY: Check if new password is the same as current password
             if (encoder.matches(newPassword, user.getPassword())) {
+                logger.warn("POST /api/auth/change-password - New password same as current password for user: {}", email);
                 return ResponseEntity.badRequest()
                         .body(new MessageResponse("New password must be different from your current password"));
             }
@@ -750,9 +828,12 @@ public class AuthController {
             // SMS
             otpService.cleanupVerifiedOTP(smsPhone, email);
 
+            logger.info("POST /api/auth/change-password - Password changed successfully for user: {}", email);
             return ResponseEntity.ok(
                     new MessageResponse("Password changed successfully. Please log in again with your new password."));
         } catch (Exception e) {
+            logger.error("POST /api/auth/change-password - Error changing password for user: {} - Error: {}", 
+                    request.get("email"), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error changing password: " + e.getMessage()));
         }
@@ -761,21 +842,24 @@ public class AuthController {
     @PostMapping("/send-phone-otp")
     public ResponseEntity<?> sendPhoneOTP(@RequestBody Map<String, String> request,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        logger.debug("POST /api/auth/send-phone-otp - Phone OTP request");
         try {
             if (userDetails == null) {
+                logger.warn("POST /api/auth/send-phone-otp - Unauthorized access attempt");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(new MessageResponse("Authentication required"));
             }
 
             String phoneNumber = request.get("phoneNumber");
-            String userId = request.get("userId");
 
             if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+                logger.warn("POST /api/auth/send-phone-otp - Phone number is required");
                 return ResponseEntity.badRequest().body(new MessageResponse("Phone number is required"));
             }
 
             // Validate phone number format (should be 12 digits: 639XXXXXXXXX)
             if (!phoneNumber.matches("^63\\d{10}$")) {
+                logger.warn("POST /api/auth/send-phone-otp - Invalid phone number format: {}", phoneNumber);
                 return ResponseEntity.badRequest()
                         .body(new MessageResponse("Invalid phone number format. Expected format: 639XXXXXXXXX"));
             }
@@ -783,6 +867,7 @@ public class AuthController {
             // Check if phone number is already in use by another user
             Optional<User> existingUser = userRepository.findByContactInformation(phoneNumber);
             if (existingUser.isPresent() && !existingUser.get().getId().equals(userDetails.getId())) {
+                logger.warn("POST /api/auth/send-phone-otp - Phone number already in use: {}", phoneNumber);
                 return ResponseEntity.badRequest().body(new MessageResponse("Phone number is already in use"));
             }
 
@@ -812,12 +897,15 @@ public class AuthController {
                     errorMessage += "SMS service error: " + smsException.getMessage();
                 }
 
+                logger.error("POST /api/auth/send-phone-otp - SMS service error: {}", smsException.getMessage(), smsException);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                         .body(new MessageResponse(errorMessage));
             }
 
+            logger.info("POST /api/auth/send-phone-otp - Phone OTP sent successfully to: {}", phoneNumber);
             return ResponseEntity.ok(new MessageResponse(result));
         } catch (Exception e) {
+            logger.error("POST /api/auth/send-phone-otp - Error sending phone verification OTP: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error sending phone verification OTP: " + e.getMessage()));
         }
@@ -825,10 +913,12 @@ public class AuthController {
 
     @PostMapping("/send-forgot-password-otp")
     public ResponseEntity<?> sendForgotPasswordOTP(@RequestBody Map<String, String> request) {
+        logger.debug("POST /api/auth/send-forgot-password-otp - Forgot password OTP request");
         try {
             String phone = request.get("phone");
 
             if (phone == null || phone.trim().isEmpty()) {
+                logger.warn("POST /api/auth/send-forgot-password-otp - Phone number is required");
                 return ResponseEntity.badRequest().body(new MessageResponse("Phone number is required"));
             }
 
@@ -837,6 +927,7 @@ public class AuthController {
             if (cleanPhone.startsWith("63") && cleanPhone.length() == 12) {
                 cleanPhone = cleanPhone.substring(2); // Remove '63' prefix
             } else if (cleanPhone.length() != 10) {
+                logger.warn("POST /api/auth/send-forgot-password-otp - Invalid phone number format: {}", phone);
                 return ResponseEntity.badRequest().body(new MessageResponse(
                         "Invalid phone number format. Please enter a valid 10-digit phone number."));
             }
@@ -849,6 +940,7 @@ public class AuthController {
                 userOptional = userRepository.findByContactInformation(phoneWith63);
 
                 if (!userOptional.isPresent()) {
+                    logger.warn("POST /api/auth/send-forgot-password-otp - No account found with phone number: {}", phone);
                     return ResponseEntity.badRequest()
                             .body(new MessageResponse("No account found with this phone number"));
                 }
@@ -872,8 +964,11 @@ public class AuthController {
                     SemaphoreSMSService.OTPType.FORGOT_PASSWORD,
                     null);
 
+            logger.info("POST /api/auth/send-forgot-password-otp - Forgot password OTP sent successfully to phone: {} for user: {}", 
+                    smsPhone, user.getEmail());
             return ResponseEntity.ok(new MessageResponse(result));
         } catch (Exception e) {
+            logger.error("POST /api/auth/send-forgot-password-otp - Error sending forgot password OTP: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error sending forgot password OTP: " + e.getMessage()));
         }
@@ -881,24 +976,29 @@ public class AuthController {
 
     @PostMapping("/reset-password-with-otp")
     public ResponseEntity<?> resetPasswordWithOTP(@RequestBody Map<String, String> request) {
+        logger.debug("POST /api/auth/reset-password-with-otp - Password reset request");
         try {
             String phone = request.get("phone");
             String otpCode = request.get("otpCode");
             String newPassword = request.get("newPassword");
 
             if (phone == null || phone.trim().isEmpty()) {
+                logger.warn("POST /api/auth/reset-password-with-otp - Phone number is required");
                 return ResponseEntity.badRequest().body(new MessageResponse("Phone number is required"));
             }
 
             if (otpCode == null || otpCode.trim().isEmpty()) {
+                logger.warn("POST /api/auth/reset-password-with-otp - OTP code is required");
                 return ResponseEntity.badRequest().body(new MessageResponse("OTP code is required"));
             }
 
             if (newPassword == null || newPassword.trim().isEmpty()) {
+                logger.warn("POST /api/auth/reset-password-with-otp - New password is required");
                 return ResponseEntity.badRequest().body(new MessageResponse("New password is required"));
             }
 
             if (newPassword.length() < 8) {
+                logger.warn("POST /api/auth/reset-password-with-otp - New password too short");
                 return ResponseEntity.badRequest()
                         .body(new MessageResponse("New password must be at least 8 characters long"));
             }
@@ -919,7 +1019,8 @@ public class AuthController {
                 userOptional = userRepository.findByContactInformation(phoneWith63);
 
                 if (!userOptional.isPresent()) {
-                    return ResponseEntity.badRequest()
+                    logger.warn("POST /api/auth/reset-password-with-otp - No account found with phone number: {}", phone);
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
                             .body(new MessageResponse("No account found with this phone number"));
                 }
             }
@@ -938,12 +1039,14 @@ public class AuthController {
             }
             OTPVerificationResponse otpResult = otpService.verifyOTP(smsPhone, otpCode, user.getEmail());
             if (!otpResult.isSuccess()) {
-                return ResponseEntity.badRequest().body(new MessageResponse(otpResult.getMessage()));
+                logger.warn("POST /api/auth/reset-password-with-otp - OTP verification failed for user: {}", user.getEmail());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new MessageResponse(otpResult.getMessage()));
             }
 
             // SECURITY: Check if new password is the same as current password (even for
             // password reset)
             if (encoder.matches(newPassword, user.getPassword())) {
+                logger.warn("POST /api/auth/reset-password-with-otp - New password same as current password for user: {}", user.getEmail());
                 return ResponseEntity.badRequest()
                         .body(new MessageResponse("New password must be different from your current password"));
             }
@@ -960,9 +1063,11 @@ public class AuthController {
             // Clean up verified OTP after successful password reset
             otpService.cleanupVerifiedOTP(smsPhone, user.getEmail());
 
+            logger.info("POST /api/auth/reset-password-with-otp - Password reset successfully for user: {}", user.getEmail());
             return ResponseEntity
                     .ok(new MessageResponse("Password reset successfully. Please log in with your new password."));
         } catch (Exception e) {
+            logger.error("POST /api/auth/reset-password-with-otp - Error resetting password: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error resetting password: " + e.getMessage()));
         }
@@ -970,15 +1075,18 @@ public class AuthController {
 
     @PostMapping("/verify-forgot-password-otp")
     public ResponseEntity<?> verifyForgotPasswordOTP(@RequestBody Map<String, String> request) {
+        logger.debug("POST /api/auth/verify-forgot-password-otp - Verifying forgot password OTP");
         try {
             String phone = request.get("phone");
             String otpCode = request.get("otpCode");
 
             if (phone == null || phone.trim().isEmpty()) {
+                logger.warn("POST /api/auth/verify-forgot-password-otp - Phone number is required");
                 return ResponseEntity.badRequest().body(new MessageResponse("Phone number is required"));
             }
 
             if (otpCode == null || otpCode.trim().isEmpty()) {
+                logger.warn("POST /api/auth/verify-forgot-password-otp - OTP code is required");
                 return ResponseEntity.badRequest().body(new MessageResponse("OTP code is required"));
             }
 
@@ -998,7 +1106,8 @@ public class AuthController {
                 userOptional = userRepository.findByContactInformation(phoneWith63);
 
                 if (!userOptional.isPresent()) {
-                    return ResponseEntity.badRequest()
+                    logger.warn("POST /api/auth/verify-forgot-password-otp - No account found with phone number: {}", phone);
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
                             .body(new MessageResponse("No account found with this phone number"));
                 }
             }
@@ -1017,12 +1126,15 @@ public class AuthController {
             // Verify OTP but DO NOT delete it yet - we need it for password reset
             OTPVerificationResponse otpResult = otpService.verifyOTPWithoutDelete(smsPhone, otpCode, user.getEmail());
             if (!otpResult.isSuccess()) {
-                return ResponseEntity.badRequest().body(new MessageResponse(otpResult.getMessage()));
+                logger.warn("POST /api/auth/verify-forgot-password-otp - OTP verification failed for user: {}", user.getEmail());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new MessageResponse(otpResult.getMessage()));
             }
 
+            logger.info("POST /api/auth/verify-forgot-password-otp - OTP verified successfully for user: {}", user.getEmail());
             return ResponseEntity
                     .ok(new MessageResponse("OTP verified successfully. You can now reset your password."));
         } catch (Exception e) {
+            logger.error("POST /api/auth/verify-forgot-password-otp - Error verifying OTP: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error verifying OTP: " + e.getMessage()));
         }
