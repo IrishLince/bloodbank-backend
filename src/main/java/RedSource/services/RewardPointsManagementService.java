@@ -608,52 +608,6 @@ public class RewardPointsManagementService {
         return null;
     }
 
-    /**
-     * Reject a voucher (any type redeemable at blood bank)
-     */
-    @Transactional
-    public RewardRedemption rejectBloodBagVoucher(String voucherId, String reason, String bloodBankId) {
-        RewardRedemption voucher = rewardRedemptionRepository.findById(voucherId)
-                .orElseThrow(() -> new RuntimeException("Voucher not found"));
-
-        // Check if voucher is redeemable at blood bank
-        String redeemableAt = voucher.getRedeemableAt();
-        if (redeemableAt != null && "HOSPITAL".equals(redeemableAt)) {
-            throw new RuntimeException("This voucher is only redeemable at hospitals, not blood banks");
-        }
-
-        if (!"PENDING".equals(voucher.getStatus())) {
-            throw new RuntimeException("Can only reject pending vouchers");
-        }
-
-        voucher.setStatus("CANCELLED");
-        voucher.setNotes(reason != null ? "Rejected: " + reason : "Rejected by blood bank");
-        voucher.setValidatedByBloodBankId(bloodBankId);
-        voucher.setUpdatedAt(new Date());
-
-        // Refund points to donor
-        User donor = userRepository.findById(voucher.getDonorId()).orElse(null);
-        if (donor != null) {
-            int currentPoints = donor.getRewardPoints() != null ? donor.getRewardPoints() : 0;
-            donor.setRewardPoints(currentPoints + voucher.getPointsCost());
-            donor.setUpdatedAt(new Date());
-            userRepository.save(donor);
-
-            // Record refund transaction
-            PointTransaction refundTransaction = PointTransaction.builder()
-                    .donorId(voucher.getDonorId())
-                    .points(voucher.getPointsCost())
-                    .transactionType("REFUND")
-                    .description("Voucher rejected - Points refunded")
-                    .relatedEntityId(voucherId)
-                    .balanceAfter(currentPoints + voucher.getPointsCost())
-                    .createdAt(new Date())
-                    .build();
-            pointTransactionRepository.save(refundTransaction);
-        }
-
-        return rewardRedemptionRepository.save(voucher);
-    }
 
     /**
      * Cancel a medical service voucher and refund points

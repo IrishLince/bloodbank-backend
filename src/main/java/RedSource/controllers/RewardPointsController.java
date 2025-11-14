@@ -537,36 +537,6 @@ public class RewardPointsController {
         }
     }
 
-    /**
-     * Reject a blood bag voucher
-     */
-    @PostMapping("/bloodbank/vouchers/{voucherId}/reject")
-    public ResponseEntity<?> rejectVoucher(
-            @PathVariable String voucherId,
-            @RequestBody Map<String, String> request) {
-        try {
-            String reason = request.get("reason");
-            String bloodBankId = request.get("bloodBankId");
-            RewardRedemption voucher = rewardPointsManagementService.rejectBloodBagVoucher(voucherId, reason, bloodBankId);
-            
-            return ResponseEntity.ok(
-                    ResponseUtils.buildSuccessResponse(
-                            HttpStatus.OK,
-                            "Voucher rejected",
-                                                        voucher));
-                } catch (RuntimeException e) {
-                        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-                                        ResponseUtils.buildErrorResponse(
-                                                        HttpStatus.BAD_REQUEST,
-                                                        e.getMessage()));
-                } catch (Exception e) {
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                                        ResponseUtils.buildErrorResponse(
-                                                        HttpStatus.INTERNAL_SERVER_ERROR,
-                                                        e.getMessage()));
-                }
-        }
-
         // Hospital-specific endpoints for medical service voucher validation
 
         /**
